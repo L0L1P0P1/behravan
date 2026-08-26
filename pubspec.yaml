@@ -1,0 +1,36 @@
+name: behravan
+description: "Pediatric Bladder & Bowel Tracker clinical logging application."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  drift: ^2.34.3
+  sqlite3_flutter_libs: ^0.5.42
+  path_provider: ^2.1.6
+  flutter_local_notifications: ^17.2.4
+  timezone: ^0.9.4
+  intl: ^0.20.3
+  table_calendar: ^3.1.3
+  pdf: ^3.13.0
+  printing: ^5.15.0
+  shared_preferences: ^2.5.5
+  uuid: ^4.4.0
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  drift_dev: ^2.34.5
+  build_runner: ^2.16.0
+  flutter_lints: ^3.0.2
+
+flutter:
+  uses-material-design: true
