@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:sqlite3/sqlite3.dart';
 
 part 'app_database.g.dart';
 
@@ -64,7 +65,22 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'behravan.sqlite'));
-    return NativeDatabase(file);
+
+    if (Platform.isAndroid) {
+      try {
+		final cachebase = await getTemporaryDirectory();
+        sqlite3.tempDirectory = cachebase.path;
+      } catch (e) {
+        // tempDirectory can only be set once
+      }
+    }
+
+    return NativeDatabase(
+      file,
+      setup: (db) {
+        db.execute('PRAGMA journal_mode=WAL;');
+      },
+    );
   });
 }
 
@@ -79,35 +95,22 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
-          await into(voidingSchedules).insert(
-            VoidingSchedulesCompanion.insert(
-              id: 'default_schedule',
-              title: 'Daytime Timed Voiding',
-              startTime: '08:00',
-              endTime: '20:00',
-              intervalMinutes: 120,
-              isActive: const Value(true),
-              daysOfWeek: const Value(127),
-            ),
-          );
+        },
+        beforeOpen: (details) async {
+          final schedules = await select(voidingSchedules).get();
+          if (schedules.isEmpty) {
+            await into(voidingSchedules).insert(
+              VoidingSchedulesCompanion.insert(
+                id: 'default_schedule',
+                title: 'Daytime Timed Voiding',
+                startTime: '08:00',
+                endTime: '20:00',
+                intervalMinutes: 120,
+                isActive: const Value(true),
+                daysOfWeek: const Value(127),
+              ),
+            );
+          }
         },
       );
-
-  // Prepopulate default schedule if empty
-  Future<void> seedDefaultData() async {
-    final schedules = await select(voidingSchedules).get();
-    if (schedules.isEmpty) {
-      await into(voidingSchedules).insert(
-        VoidingSchedulesCompanion.insert(
-          id: 'default_schedule',
-          title: 'Daytime Timed Voiding',
-          startTime: '08:00',
-          endTime: '20:00',
-          intervalMinutes: 120,
-          isActive: const Value(true),
-          daysOfWeek: const Value(127),
-        ),
-      );
-    }
-  }
 }

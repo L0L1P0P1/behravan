@@ -10,15 +10,22 @@ import 'features/reports/presentation/reports_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NotificationService.instance.init();
-  await NotificationService.instance.requestPermissions();
-  await NotificationService.instance.scheduleMorningEnuresisPrompt();
+  
+  // Safe synchronous timezone initialization
+  tz.initializeTimeZones();
 
   runApp(
     const ProviderScope(
       child: BehravanApp(),
     ),
   );
+
+  // Initialize notifications asynchronously in background
+  NotificationService.instance.init().then((_) {
+    NotificationService.instance.scheduleMorningEnuresisPrompt();
+  }).catchError((e) {
+    debugPrint('Notification init error: $e');
+  });
 }
 
 class BehravanApp extends StatelessWidget {

@@ -26,10 +26,14 @@
           flutter
         ];
 
+        PUB_HOSTED_URL = "https://pub.myket.ir";
+        FLUTTER_STORAGE_BASE_URL = "https://pub.myket.ir";
+
         shellHook = ''
           # Uncomment if you use zsh
-          # zsh
+          zsh
         '';
+
       };
     };
 }
