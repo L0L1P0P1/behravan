@@ -11,22 +11,21 @@ import 'package:timezone/data/latest_all.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Safe synchronous timezone initialization
   tz.initializeTimeZones();
 
-  runApp(
-    const ProviderScope(
-      child: BehravanApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: BehravanApp()));
 
   // Initialize notifications asynchronously in background
-  NotificationService.instance.init().then((_) {
-    NotificationService.instance.scheduleMorningEnuresisPrompt();
-  }).catchError((e) {
-    debugPrint('Notification init error: $e');
-  });
+  NotificationService.instance
+      .init()
+      .then((_) {
+        NotificationService.instance.scheduleMorningEnuresisPrompt();
+      })
+      .catchError((e) {
+        debugPrint('Notification init error: $e');
+      });
 }
 
 class BehravanApp extends StatelessWidget {
@@ -38,10 +37,7 @@ class BehravanApp extends StatelessWidget {
       title: 'بهرavan',
       debugShowCheckedModeBanner: false,
       locale: const Locale('fa', 'IR'),
-      supportedLocales: const [
-        Locale('fa', 'IR'),
-        Locale('en', 'US'),
-      ],
+      supportedLocales: const [Locale('fa', 'IR'), Locale('en', 'US')],
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -80,13 +76,11 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
-        body: IndexedStack(
-          index: _currentIndex,
-          children: _screens,
-        ),
+        body: IndexedStack(index: _currentIndex, children: _screens),
         bottomNavigationBar: NavigationBar(
           selectedIndex: _currentIndex,
-          onDestinationSelected: (index) => setState(() => _currentIndex = index),
+          onDestinationSelected: (index) =>
+              setState(() => _currentIndex = index),
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.timer_outlined),
