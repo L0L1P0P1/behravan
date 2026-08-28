@@ -64,7 +64,7 @@ LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dbFolder = await getApplicationDocumentsDirectory();
     final file = File(p.join(dbFolder.path, 'behravan.sqlite'));
-    return NativeDatabase.createInBackground(file);
+    return NativeDatabase(file);
   });
 }
 
@@ -74,6 +74,24 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   int get schemaVersion => 1;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (Migrator m) async {
+          await m.createAll();
+          await into(voidingSchedules).insert(
+            VoidingSchedulesCompanion.insert(
+              id: 'default_schedule',
+              title: 'Daytime Timed Voiding',
+              startTime: '08:00',
+              endTime: '20:00',
+              intervalMinutes: 120,
+              isActive: const Value(true),
+              daysOfWeek: const Value(127),
+            ),
+          );
+        },
+      );
 
   // Prepopulate default schedule if empty
   Future<void> seedDefaultData() async {
