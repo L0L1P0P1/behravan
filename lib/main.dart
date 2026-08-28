@@ -7,6 +7,7 @@ import 'features/voiding/presentation/voiding_screen.dart';
 import 'features/enuresis/presentation/enuresis_screen.dart';
 import 'features/bowel/presentation/bowel_screen.dart';
 import 'features/reports/presentation/reports_screen.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
