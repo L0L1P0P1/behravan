@@ -24,74 +24,154 @@ class ReportsScreen extends ConsumerWidget {
         build: (pw.Context context) => [
           pw.Header(
             level: 0,
-            child: pw.Text('Behravan Pediatric Clinical Report',
-                style: const pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+            child: pw.Text(
+              'Behravan Pediatric Clinical Report',
+              style: const pw.TextStyle(
+                fontSize: 24,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
           ),
-          pw.Paragraph(text: 'Generated on: ${DateTime.now().toString().substring(0, 19)}'),
+          pw.Paragraph(
+            text: 'Generated on: ${DateTime.now().toString().substring(0, 19)}',
+          ),
           pw.SizedBox(height: 20),
 
           pw.Header(level: 1, child: pw.Text('Enuresis (Dry Night) Logs')),
           pw.TableHelper.fromTextArray(
-            headers: ['Date', 'Outcome', 'Woke to Pee', 'Fluid Restriction', 'Notes'],
-            data: enuresisLogs.map((e) => [
-                  e.date,
-                  e.isDry ? 'Dry' : 'Wet',
-                  e.wokeToPee ? 'Yes' : 'No',
-                  e.eveningFluidRestriction ? 'Yes' : 'No',
-                  e.notes ?? ''
-                ]).toList(),
+            headers: [
+              'Date',
+              'Outcome',
+              'Woke to Pee',
+              'Fluid Restriction',
+              'Notes',
+            ],
+            data: enuresisLogs
+                .map(
+                  (e) => [
+                    e.date,
+                    e.isDry ? 'Dry' : 'Wet',
+                    e.wokeToPee ? 'Yes' : 'No',
+                    e.eveningFluidRestriction ? 'Yes' : 'No',
+                    e.notes ?? '',
+                  ],
+                )
+                .toList(),
           ),
           pw.SizedBox(height: 20),
 
           pw.Header(level: 1, child: pw.Text('Daytime Voiding Logs')),
           pw.TableHelper.fromTextArray(
             headers: ['Timestamp', 'Event Type', 'Urgency', 'Volume', 'Notes'],
-            data: voidingLogs.map((v) => [
-                  v.timestamp.toString().substring(0, 16),
-                  v.eventType,
-                  v.urgencyLevel?.toString() ?? '-',
-                  v.volumeEstimation ?? '-',
-                  v.notes ?? ''
-                ]).toList(),
+            data: voidingLogs
+                .map(
+                  (v) => [
+                    v.timestamp.toString().substring(0, 16),
+                    v.eventType,
+                    v.urgencyLevel?.toString() ?? '-',
+                    v.volumeEstimation ?? '-',
+                    v.notes ?? '',
+                  ],
+                )
+                .toList(),
           ),
           pw.SizedBox(height: 20),
 
-          pw.Header(level: 1, child: pw.Text('Bowel Movement Logs (Bristol Stool Scale)')),
+          pw.Header(
+            level: 1,
+            child: pw.Text('Bowel Movement Logs (Bristol Stool Scale)'),
+          ),
           pw.TableHelper.fromTextArray(
-            headers: ['Timestamp', 'Bristol Type', 'Straining', 'Blood', 'Soiling', 'Notes'],
-            data: bowelLogs.map((b) => [
-                  b.timestamp.toString().substring(0, 16),
-                  'Type ${b.bristolType}',
-                  b.strainingLevel.toString(),
-                  b.bloodPresent ? 'Yes' : 'No',
-                  b.soilingAccident ? 'Yes' : 'No',
-                  b.notes ?? ''
-                ]).toList(),
+            headers: [
+              'Timestamp',
+              'Bristol Type',
+              'Straining',
+              'Blood',
+              'Soiling',
+              'Notes',
+            ],
+            data: bowelLogs
+                .map(
+                  (b) => [
+                    b.timestamp.toString().substring(0, 16),
+                    'Type ${b.bristolType}',
+                    b.strainingLevel.toString(),
+                    b.bloodPresent ? 'Yes' : 'No',
+                    b.soilingAccident ? 'Yes' : 'No',
+                    b.notes ?? '',
+                  ],
+                )
+                .toList(),
           ),
         ],
       ),
     );
 
-    await Printing.sharePdf(bytes: await pdf.save(), filename: 'behravan_clinical_report.pdf');
+    await Printing.sharePdf(
+      bytes: await pdf.save(),
+      filename: 'behravan_clinical_report.pdf',
+    );
   }
 
   Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
     final db = ref.read(databaseProvider);
     final voidingLogs = await db.select(db.voidingLogs).get();
-
-    final buffer = StringBuffer();
-    buffer.writeln('ID,Timestamp,EventType,UrgencyLevel,VolumeEstimation,Notes');
-    for (var v in voidingLogs) {
-      buffer.writeln('${v.id},${v.timestamp},${v.eventType},${v.urgencyLevel},${v.volumeEstimation},"${v.notes ?? ''}"');
-    }
+    final enuresisLogs = await db.select(db.enuresisLogs).get();
+    final bowelLogs = await db.select(db.bowelLogs).get();
 
     final dir = await getApplicationDocumentsDirectory();
-    final file = File('${dir.path}/voiding_logs.csv');
-    await file.writeAsString(buffer.toString());
+    final timestamp = DateTime.now()
+        .toIso8601String()
+        .replaceAll(':', '-')
+        .substring(0, 19);
+
+    // 1. Daytime Voiding CSV
+    final voidingCsv = StringBuffer();
+    voidingCsv.writeln(
+      'ID,Timestamp,EventType,UrgencyLevel,VolumeEstimation,Notes',
+    );
+    for (final v in voidingLogs) {
+      voidingCsv.writeln(
+        '${v.id},${v.timestamp.toIso8601String()},${v.eventType},${v.urgencyLevel ?? ""},${v.volumeEstimation ?? ""},"${v.notes?.replaceAll('"', '""') ?? ""}"',
+      );
+    }
+    final voidingFile = File('${dir.path}/voiding_logs_$timestamp.csv');
+    await voidingFile.writeAsString(voidingCsv.toString());
+
+    // 2. Enuresis / Night Log CSV
+    final enuresisCsv = StringBuffer();
+    enuresisCsv.writeln(
+      'ID,Date,IsDry,WokeToPee,EveningFluidRestriction,Notes',
+    );
+    for (final e in enuresisLogs) {
+      enuresisCsv.writeln(
+        '${e.id},${e.date},${e.isDry},${e.wokeToPee},${e.eveningFluidRestriction},"${e.notes?.replaceAll('"', '""') ?? ""}"',
+      );
+    }
+    final enuresisFile = File('${dir.path}/enuresis_logs_$timestamp.csv');
+    await enuresisFile.writeAsString(enuresisCsv.toString());
+
+    // 3. Bowel Log CSV
+    final bowelCsv = StringBuffer();
+    bowelCsv.writeln(
+      'ID,Timestamp,BristolType,StrainingLevel,BloodPresent,SoilingAccident,Notes',
+    );
+    for (final b in bowelLogs) {
+      bowelCsv.writeln(
+        '${b.id},${b.timestamp.toIso8601String()},${b.bristolType},${b.strainingLevel},${b.bloodPresent},${b.soilingAccident},"${b.notes?.replaceAll('"', '""') ?? ""}"',
+      );
+    }
+    final bowelFile = File('${dir.path}/bowel_logs_$timestamp.csv');
+    await bowelFile.writeAsString(bowelCsv.toString());
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خروجی CSV ذخیره شد: ${file.path}')),
+        SnackBar(
+          content: Text(
+            'سه فایل CSV با موفقیت در مسیر زیر ذخیره شدند:\n${dir.path}',
+          ),
+          duration: const Duration(seconds: 4),
+        ),
       );
     }
   }
@@ -103,16 +183,15 @@ class ReportsScreen extends ConsumerWidget {
     final bowelCount = ref.watch(bowelLogsProvider).value?.length ?? 0;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('گزارش‌ها و خروجی‌ها'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('گزارش‌ها و خروجی‌ها'), elevation: 0),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Card(
             elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -126,17 +205,30 @@ class ReportsScreen extends ConsumerWidget {
                   ListTile(
                     leading: const CircleAvatar(child: Icon(Icons.water_drop)),
                     title: const Text('ثبت‌های ادرار روزانه'),
-                    trailing: Text('$voidingCount رکورد', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    trailing: Text(
+                      '$voidingCount رکورد',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                   ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.nightlight_round)),
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.nightlight_round),
+                    ),
                     title: const Text('ثبت‌های شب‌ادراری'),
-                    trailing: Text('$enuresisCount رکورد', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    trailing: Text(
+                      '$enuresisCount رکورد',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                   ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.medical_services)),
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.medical_services),
+                    ),
                     title: const Text('ثبت‌های مدفوع'),
-                    trailing: Text('$bowelCount رکورد', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    trailing: Text(
+                      '$bowelCount رکورد',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -150,7 +242,9 @@ class ReportsScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 16),
               backgroundColor: Colors.deepPurple,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: () => _generatePdfReport(context, ref),
           ),
@@ -160,7 +254,9 @@ class ReportsScreen extends ConsumerWidget {
             label: const Text('خروجی ثبت‌های ادرار به صورت CSV'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             onPressed: () => _exportCsv(context, ref),
           ),
