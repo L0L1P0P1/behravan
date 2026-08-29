@@ -3,6 +3,12 @@ allprojects {
         google()
         mavenCentral()
     }
+    configurations.all {
+        resolutionStrategy {
+            force("com.android.tools:desugar_jdk_libs:2.0.4")
+            force("com.android.tools:desugar_jdk_libs_configuration:2.0.4")
+        }
+    }
 }
 
 val newBuildDir: Directory =

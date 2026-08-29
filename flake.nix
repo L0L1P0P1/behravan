@@ -1,5 +1,5 @@
 {
-  description = "Flutter Android development environment";
+  description = "FHS Environment for Flutter and Android Development";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -18,62 +18,99 @@
         pkgs = import nixpkgs {
           inherit system;
           config = {
-            android_sdk.accept_license = true;
             allowUnfree = true;
+            android_sdk.accept_license = true;
           };
         };
 
-        androidComposition = pkgs.androidenv.composeAndroidPackages {
-          cmdLineToolsVersion = "13.0";
-          buildToolsVersions = [
-            "34.0.0"
-            "35.0.0"
-            "36.0.0"
-          ];
-          platformVersions = [
-            "34"
-            "35"
-            "36"
-          ];
-          abiVersions = [
-            "arm64-v8a"
-            "x86_64"
-          ];
-          includeNDK = true;
-          ndkVersions = [
-            "28.2.13676358"
-            "27.0.12077973"
-          ];
-          cmakeVersions = [ "3.22.1" ];
-          includeSources = false;
-          includeSystemImages = false;
-        };
+        fhs = pkgs.buildFHSEnv {
+          name = "flutter-fhs-env";
 
-        androidSdk = androidComposition.androidsdk;
-      in
-      {
-        devShells.default = pkgs.mkShell {
-          buildInputs = [
-            pkgs.flutter
-            pkgs.jdk17
-            androidSdk
-            pkgs.gradle
-          ];
+          targetPkgs =
+            pkgs: with pkgs; [
+              # Core & Shell Utilities
+              bash
+              coreutils
+              which
+              git
+              curl
+              wget
+              unzip
+              zip
+              file
+              gnupg
+
+              # Build Toolchain
+              gcc
+              gnumake
+              cmake
+              ninja
+              pkg-config
+
+              # Java
+              jdk17
+
+              # Android Platform Tools (adb)
+              android-tools
+
+              # Flutter Desktop & Graphics Libraries
+              gtk3
+              glib
+              pango
+              cairo
+              gdk-pixbuf
+              atk
+              harfbuzz
+              freetype
+              fontconfig
+              dbus
+              libglvnd
+              mesa
+              vulkan-loader
+              vulkan-headers
+
+              # Audio, Compression & Common C/C++ dependencies
+              alsa-lib
+              pulseaudio
+              zlib
+              libsecret
+              sqlite
+              openssl
+            ];
 
           # PUB_HOSTED_URL = "https://pub.myket.ir";
           # FLUTTER_STORAGE_BASE_URL = "https://pub.myket.ir";
 
-          shellHook = ''
-            export ANDROID_HOME="${androidSdk}/libexec/android-sdk"
-            export ANDROID_SDK_ROOT="${androidSdk}/libexec/android-sdk"
-            export JAVA_HOME="${pkgs.jdk17.home}"
-            export PATH="$ANDROID_HOME/platform-tools:$PATH"
+          multiPkgs =
+            pkgs: with pkgs; [
+              zlib
+              glibc
+            ];
 
-            # Auto-configure Flutter to recognize the Nix SDK path
-            flutter config --android-sdk "$ANDROID_HOME" > /dev/null 2>&1
-            zsh
+          profile = ''
+            # Set up Android SDK paths in user directory
+            export ANDROID_HOME="$HOME/Android/Sdk"
+            export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
+            export ANDROID_USER_HOME="$HOME/.android"
+            export JAVA_HOME="${pkgs.jdk17}/lib/openjdk"
+
+            # Point to local official Flutter SDK if extracted in home directory
+            if [ -d "$HOME/flutter/bin" ]; then
+              export PATH="$HOME/flutter/bin:$PATH"
+            fi
+
+            # Add Android CLI & Platform Tools to PATH
+            export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+
+            # Allow Gradle / AGP to find native graphics drivers inside FHS
+            export LD_LIBRARY_PATH=/usr/lib:/usr/lib64:$LD_LIBRARY_PATH
           '';
+
+          runScript = "bash";
         };
+      in
+      {
+        devShells.default = fhs.env;
       }
     );
 }
