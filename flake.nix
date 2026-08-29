@@ -47,6 +47,10 @@
               ninja
               pkg-config
 
+              # flutter
+              flutter
+              dart
+
               # Java
               jdk17
 
