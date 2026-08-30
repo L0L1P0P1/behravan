@@ -12,7 +12,7 @@ class VoidingSchedules extends Table {
   TextColumn get id => text()();
   TextColumn get title => text()();
   TextColumn get startTime => text()(); // e.g. '08:00'
-  TextColumn get endTime => text()();     // e.g. '20:00'
+  TextColumn get endTime => text()(); // e.g. '20:00'
   IntColumn get intervalMinutes => integer()(); // e.g. 120
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   IntColumn get daysOfWeek => integer().withDefault(const Constant(127))();
@@ -25,9 +25,11 @@ class VoidingSchedules extends Table {
 class VoidingLogs extends Table {
   TextColumn get id => text()();
   DateTimeColumn get timestamp => dateTime()();
-  TextColumn get eventType => text()(); // 'prompted_success', 'spontaneous', 'accident', 'missed'
+  TextColumn get eventType =>
+      text()(); // 'prompted_success', 'spontaneous', 'accident', 'missed'
   IntColumn get urgencyLevel => integer().nullable()(); // 1 to 3
-  TextColumn get volumeEstimation => text().nullable()(); // 'small', 'medium', 'large'
+  TextColumn get volumeEstimation =>
+      text().nullable()(); // 'small', 'medium', 'large'
   TextColumn get notes => text().nullable()();
 
   @override
@@ -40,7 +42,8 @@ class EnuresisLogs extends Table {
   TextColumn get date => text()(); // YYYY-MM-DD unique
   BoolColumn get isDry => boolean()();
   BoolColumn get wokeToPee => boolean().withDefault(const Constant(false))();
-  BoolColumn get eveningFluidRestriction => boolean().withDefault(const Constant(false))();
+  BoolColumn get eveningFluidRestriction =>
+      boolean().withDefault(const Constant(false))();
   TextColumn get notes => text().nullable()();
 
   @override
@@ -52,9 +55,11 @@ class BowelLogs extends Table {
   TextColumn get id => text()();
   DateTimeColumn get timestamp => dateTime()();
   IntColumn get bristolType => integer()(); // 1 to 7
-  IntColumn get strainingLevel => integer().withDefault(const Constant(1))(); // 1 to 3
+  IntColumn get strainingLevel =>
+      integer().withDefault(const Constant(1))(); // 1 to 3
   BoolColumn get bloodPresent => boolean().withDefault(const Constant(false))();
-  BoolColumn get soilingAccident => boolean().withDefault(const Constant(false))();
+  BoolColumn get soilingAccident =>
+      boolean().withDefault(const Constant(false))();
   TextColumn get notes => text().nullable()();
 
   @override
@@ -68,7 +73,7 @@ LazyDatabase _openConnection() {
 
     if (Platform.isAndroid) {
       try {
-		final cachebase = await getTemporaryDirectory();
+        final cachebase = await getTemporaryDirectory();
         sqlite3.tempDirectory = cachebase.path;
       } catch (e) {
         // tempDirectory can only be set once
@@ -93,24 +98,24 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (Migrator m) async {
-          await m.createAll();
-        },
-        beforeOpen: (details) async {
-          final schedules = await select(voidingSchedules).get();
-          if (schedules.isEmpty) {
-            await into(voidingSchedules).insert(
-              VoidingSchedulesCompanion.insert(
-                id: 'default_schedule',
-                title: 'Daytime Timed Voiding',
-                startTime: '08:00',
-                endTime: '20:00',
-                intervalMinutes: 120,
-                isActive: const Value(true),
-                daysOfWeek: const Value(127),
-              ),
-            );
-          }
-        },
-      );
+    onCreate: (Migrator m) async {
+      await m.createAll();
+    },
+    beforeOpen: (details) async {
+      final schedules = await select(voidingSchedules).get();
+      if (schedules.isEmpty) {
+        await into(voidingSchedules).insert(
+          VoidingSchedulesCompanion.insert(
+            id: 'default_schedule',
+            title: 'Daytime Timed Voiding',
+            startTime: '08:00',
+            endTime: '20:00',
+            intervalMinutes: 120,
+            isActive: const Value(true),
+            daysOfWeek: const Value(127),
+          ),
+        );
+      }
+    },
+  );
 }
