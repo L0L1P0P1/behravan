@@ -11,10 +11,15 @@ import 'features/enuresis/presentation/enuresis_screen.dart';
 import 'features/bowel/presentation/bowel_screen.dart';
 import 'features/reports/presentation/reports_screen.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
+import 'core/providers.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   tz.initializeTimeZones();
+
+  final prefs = await SharedPreferences.getInstance();
 
   try {
     await NotificationService.instance.init();
@@ -28,7 +33,12 @@ void main() async {
     debugPrint('Notification init error: $e\n$st');
   }
 
-  runApp(const ProviderScope(child: BehravanApp()));
+  runApp(
+    ProviderScope(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      child: const BehravanApp(),
+    ),
+  );
 }
 
 class BehravanApp extends StatelessWidget {

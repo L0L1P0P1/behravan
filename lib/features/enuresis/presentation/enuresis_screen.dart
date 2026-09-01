@@ -6,6 +6,9 @@ import 'package:uuid/uuid.dart';
 import 'package:drift/drift.dart' show Value;
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
+import '../../../core/utils/date_utils.dart';
+import 'package:shamsi_date/shamsi_date.dart';
+import 'widgets/jalali_calendar_grid.dart';
 
 class EnuresisScreen extends ConsumerStatefulWidget {
   const EnuresisScreen({super.key});
@@ -363,47 +366,20 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                   side: BorderSide(color: Colors.grey.shade200),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: TableCalendar(
-                    locale: 'fa_IR',
-                    firstDay: DateTime.utc(2023, 1, 1),
-                    lastDay: DateTime.utc(2030, 12, 31),
-                    focusedDay: _focusedDay,
-                    daysOfWeekHeight: 36,
-                    rowHeight: 42,
-                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                    onDaySelected: (selectedDay, focusedDay) {
+                  padding: const EdgeInsets.all(12),
+                  child: JalaliCalendarGrid(
+                    // Pass the active Gregorian date down as a Jalali date
+                    selectedDate: Jalali.fromDateTime(
+                      _selectedDay ?? DateTime.now(),
+                    ),
+                    // Receive the new Jalali date back and update local state
+                    onDaySelected: (newDate) {
                       setState(() {
-                        _selectedDay = DateTime(
-                          selectedDay.year,
-                          selectedDay.month,
-                          selectedDay.day,
-                        );
-                        _focusedDay = focusedDay;
+                        _selectedDay = newDate.toDateTime();
                       });
                     },
-                    calendarBuilders: CalendarBuilders(
-                      markerBuilder: (context, date, events) {
-                        final dStr = DateFormat('yyyy-MM-dd').format(date);
-                        final log = logMap[dStr];
-                        if (log != null) {
-                          return Positioned(
-                            bottom: 2,
-                            child: Container(
-                              width: 7,
-                              height: 7,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: log.isDry
-                                    ? Colors.green
-                                    : Colors.amber.shade800,
-                              ),
-                            ),
-                          );
-                        }
-                        return null;
-                      },
-                    ),
+                    // Pass the O(1) hashmap directly to the calendar
+                    logMap: logMap,
                   ),
                 ),
               ),

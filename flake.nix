@@ -82,9 +82,6 @@
               openssl
             ];
 
-          # PUB_HOSTED_URL = "https://pub.myket.ir";
-          # FLUTTER_STORAGE_BASE_URL = "https://pub.myket.ir";
-
           multiPkgs =
             pkgs: with pkgs; [
               zlib
@@ -108,9 +105,13 @@
 
             # Allow Gradle / AGP to find native graphics drivers inside FHS
             export LD_LIBRARY_PATH=/usr/lib:/usr/lib64:$LD_LIBRARY_PATH
+
+            # Flutter Mirros
+            # export PUB_HOSTED_URL="https://pub.myket.ir"
+            # export FLUTTER_STORAGE_BASE_URL="https://pub.myket.ir"
           '';
 
-          runScript = "bash";
+          runScript = "zsh";
         };
       in
       {

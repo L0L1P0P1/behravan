@@ -41,6 +41,12 @@ class ReportsScreen extends ConsumerWidget {
       );
     }
 
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setString(
+      'last_interval_change',
+      DateTime.now().toIso8601String(),
+    );
+
     if (context.mounted) {
       await CelebrationDialog.show(
         context,

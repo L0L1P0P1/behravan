@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer';
 import 'dart:typed_data';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/services.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:drift/drift.dart' show Value;
@@ -35,6 +36,18 @@ class NotificationService {
     if (_initialized) return;
 
     tz.initializeTimeZones();
+    // 1. Fetch exact timezone directly from Android OS
+    try {
+      const platform = MethodChannel('behravan/timezone');
+      final String timeZoneName = await platform.invokeMethod(
+        'getTimeZoneName',
+      );
+      tz.setLocalLocation(tz.getLocation(timeZoneName));
+    } catch (e) {
+      log('Failed to get native timezone: $e');
+      // Fallback to UTC if running on a platform where this channel isn't implemented
+      tz.setLocalLocation(tz.UTC);
+    }
 
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -147,7 +160,7 @@ class NotificationService {
     final notificationId = (scheduleId.hashCode & 0x7FFFFFFF);
 
     final androidDetails = AndroidNotificationDetails(
-      'voiding_alarms_v2',
+      'voiding_alarms_v3', // Changed to v3 to force channel recreation
       'Timed Voiding High Priority Alarms',
       channelDescription: 'Loud reminders for pediatric timed voiding routine',
       importance: Importance.max,
@@ -158,6 +171,9 @@ class NotificationService {
       visibility: NotificationVisibility.public,
       category: AndroidNotificationCategory.alarm,
       fullScreenIntent: true,
+      // This magical flag forces the notification sound to loop continuously
+      // until the user taps an action or dismisses it.
+      additionalFlags: Int32List.fromList(<int>[4]),
       actions: const <AndroidNotificationAction>[
         AndroidNotificationAction(
           'voiding_success',
@@ -180,7 +196,8 @@ class NotificationService {
       'زمان دستشویی رفتن فرارسیده است!',
       scheduledTZ,
       NotificationDetails(android: androidDetails),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      // CHANGE THIS LINE:
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       payload: 'voiding_slot_$scheduleId',
@@ -218,7 +235,8 @@ class NotificationService {
       'دیشب چطور بود؟ وضعیت شب گذشته را ثبت کنید.',
       scheduledDate,
       const NotificationDetails(android: androidDetails),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      // CHANGE THIS LINE:
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,

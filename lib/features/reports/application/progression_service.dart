@@ -17,7 +17,29 @@ final progressionEvaluationProvider = Provider<IntervalEvaluationResult?>((
   final logs = logsAsync.value!;
   final activeSchedule = schedulesAsync.value!.first;
   final now = DateTime.now();
+  final prefs = ref.watch(sharedPreferencesProvider);
+  final lastChangeStr = prefs.getString('last_interval_change');
   final threeDaysAgo = now.subtract(const Duration(days: 3));
+
+  if (lastChangeStr != null) {
+    final lastChange = DateTime.parse(lastChangeStr);
+    final daysSinceChange = now.difference(lastChange).inDays;
+
+    if (daysSinceChange < 3) {
+      return IntervalEvaluationResult(
+        totalLogs: 0, // Bypass stats display during cooldown
+        successfulLogs: 0,
+        accidentLogs: 0,
+        spontaneousLogs: 0,
+        successRate: 0.0,
+        status: ProgressionStatus.maintain, // Force maintain
+        currentInterval: activeSchedule.intervalMinutes,
+        suggestedInterval: activeSchedule.intervalMinutes,
+        recommendationMessage:
+            'فاصله زمانی اخیراً تغییر کرده است. در حال ارزیابی برنامه جدید... (${3 - daysSinceChange} روز تا ارزیابی بعدی)',
+      );
+    }
+  }
 
   // Filter daytime logs in trailing 3-day window
   final windowLogs = logs
@@ -39,7 +61,9 @@ final progressionEvaluationProvider = Provider<IntervalEvaluationResult?>((
   }
 
   final total = windowLogs.length;
-  final double successRate = total > 0 ? (successes / total) : 0.0;
+  final double successRate = total > 0
+      ? ((successes + spontaneous) / total)
+      : 0.0;
   final currentInterval = activeSchedule.intervalMinutes;
 
   if (total < 6) {

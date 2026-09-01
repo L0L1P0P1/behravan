@@ -115,6 +115,12 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     final schedules = await db.select(db.voidingSchedules).get();
     if (schedules.isEmpty) return;
 
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setString(
+      'last_interval_change',
+      DateTime.now().toIso8601String(),
+    );
+
     final schedule = schedules.first;
     await (db.update(db.voidingSchedules)
           ..where((t) => t.id.equals(schedule.id)))
@@ -345,6 +351,12 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                               endTime: Value(formattedEnd),
                               intervalMinutes: Value(finalInterval),
                             ),
+                          );
+
+                          final prefs = ref.read(sharedPreferencesProvider);
+                          await prefs.setString(
+                            'last_interval_change',
+                            DateTime.now().toIso8601String(),
                           );
 
                           if (schedule.isActive) {
