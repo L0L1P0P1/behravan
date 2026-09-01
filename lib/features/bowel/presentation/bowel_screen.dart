@@ -23,19 +23,19 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
   final Map<int, _BristolInfo> _bristolData = {
     1: _BristolInfo(
       'نوع ۱: فندق‌های سخت',
-      'یبوست شدید (گلوله‌ای و سفت)',
+      'یبوست شدید (گلوله‌ای و جدا)',
       Colors.brown.shade900,
       '🪨',
     ),
     2: _BristolInfo(
       'نوع ۲: سوسیس توده‌ای',
-      'یبوست خفیف (توده‌ای)',
+      'یبوست خفیف (ناهموار و توده‌ای)',
       Colors.brown.shade700,
       '🥖',
     ),
     3: _BristolInfo(
       'نوع ۳: سوسیس شیاردار',
-      'طبیعی (با شیار سطحی)',
+      'طبیعی (با شیار روی سطح)',
       Colors.green.shade800,
       '🌭',
     ),
@@ -47,19 +47,19 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
     ),
     5: _BristolInfo(
       'نوع ۵: لکه‌های نرم با لبه مشخص',
-      'کمبود فیبر غذایی',
+      'کمبود فیبر در تغذیه',
       Colors.amber.shade700,
       '🍪',
     ),
     6: _BristolInfo(
       'نوع ۶: خمیری و بدون شکل',
-      'اسهال خفیف (کرکی)',
+      'اسهال خفیف (کرکی و نامنظم)',
       Colors.orange.shade800,
       '🥞',
     ),
     7: _BristolInfo(
       'نوع ۷: کاملاً آبکی',
-      'اسهال شدید (مایع کامل)',
+      'اسهال شدید (مایع بدون بخش جامد)',
       Colors.red.shade700,
       '🌊',
     ),
@@ -69,6 +69,58 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
   void dispose() {
     _notesController.dispose();
     super.dispose();
+  }
+
+  void _showBristolChartDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'راهنمای مقیاس بریستول',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  'https://encrypted-tbn1.gstatic.com/licensed-image?q=tbn:ANd9GcSIaKFnOd_4-A5IBVcpck0kpGbh7JZrs0uS9yqDYAuKfoNZpV0rbFdffgbxTgtdxt6-MzHAbXCdVeP2vT0',
+                  height: 320,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => Container(
+                    padding: const EdgeInsets.all(20),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'تصویر در دسترس نیست (اتصال اینترنت را بررسی کنید).',
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'انواع ۳ و ۴ حالت طبیعی و سالم هستند. انواع ۱ و ۲ نشان‌دهنده یبوست می‌باشند.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _logBowel(WidgetRef ref) async {
@@ -117,11 +169,18 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            tooltip: 'مشاهده جدول تصویری بریستول',
+            onPressed: () => _showBristolChartDialog(context),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         children: [
-          // Selected Bristol Highlight Header Card
+          // Selected Highlight Header Card
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -164,11 +223,21 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
           ),
 
           const SizedBox(height: 16),
-          const Text(
-            'انتخاب شکل مدفوع (مقیاس بریستول):',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'انتخاب شکل مدفوع (مقیاس بریستول):',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.image, size: 18),
+                label: const Text('جدول تصویری'),
+                onPressed: () => _showBristolChartDialog(context),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 4),
 
           // Horizontal Visual Stool Type Selector
           SizedBox(
@@ -281,7 +350,7 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
 
           const SizedBox(height: 12),
 
-          // One-Tap Action Submit Button
+          // Action Submit Button
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(

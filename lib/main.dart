@@ -1,31 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+
 import 'core/services/notification_service.dart';
 import 'core/localization/app_localizations.dart';
+import 'data/database/app_database.dart';
 import 'features/voiding/presentation/voiding_screen.dart';
 import 'features/enuresis/presentation/enuresis_screen.dart';
 import 'features/bowel/presentation/bowel_screen.dart';
 import 'features/reports/presentation/reports_screen.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Safe synchronous timezone initialization
   tz.initializeTimeZones();
 
-  runApp(const ProviderScope(child: BehravanApp()));
+  try {
+    await NotificationService.instance.init();
+    await NotificationService.instance.requestPermissions();
+    await NotificationService.instance.scheduleMorningEnuresisPrompt();
 
-  // Initialize notifications asynchronously in background
-  NotificationService.instance
-      .init()
-      .then((_) {
-        NotificationService.instance.scheduleMorningEnuresisPrompt();
-      })
-      .catchError((e) {
-        debugPrint('Notification init error: $e');
-      });
+    final db = AppDatabase();
+    await NotificationService.instance.resetTimerForActiveSchedules(db);
+    await db.close();
+  } catch (e, st) {
+    debugPrint('Notification init error: $e\n$st');
+  }
+
+  runApp(const ProviderScope(child: BehravanApp()));
 }
 
 class BehravanApp extends StatelessWidget {

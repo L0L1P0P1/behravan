@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import '../data/database/app_database.dart';
+import 'services/notification_service.dart';
 
 final databaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();
@@ -34,4 +35,8 @@ final bowelLogsProvider = StreamProvider<List<BowelLogEntity>>((ref) {
   return (db.select(
     db.bowelLogs,
   )..orderBy([(t) => OrderingTerm.desc(t.timestamp)])).watch();
+});
+
+final nextAlarmProvider = StreamProvider<DateTime?>((ref) {
+  return NotificationService.instance.nextAlarmStream;
 });

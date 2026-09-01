@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:developer';
+import 'dart:typed_data';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -23,6 +25,10 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
+  final _nextAlarmController = StreamController<DateTime?>.broadcast();
+  Stream<DateTime?> get nextAlarmStream => _nextAlarmController.stream;
+  DateTime? currentNextAlarm;
+
   bool _initialized = false;
 
   Future<void> init() async {
@@ -40,7 +46,7 @@ class NotificationService {
       initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) async {
         log(
-          'Notification action tapped: ${response.actionId} with payload ${response.payload}',
+          'Notification tapped: ${response.actionId} | payload: ${response.payload}',
         );
         if (response.actionId != null) {
           await handleNotificationAction(response.actionId!, response.payload);
@@ -48,6 +54,23 @@ class NotificationService {
       },
       onDidReceiveBackgroundNotificationResponse: notificationTapBackground,
     );
+
+    // Explicit V2 channel with forced sound & high importance
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'voiding_alarms_v2',
+      'Timed Voiding High Priority Alarms',
+      description: 'Loud reminders for pediatric timed voiding routine',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+      enableLights: true,
+    );
+
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(channel);
 
     _initialized = true;
   }
@@ -65,8 +88,7 @@ class NotificationService {
     }
   }
 
-  /// Schedules repeating reminders across the day window
-  Future<void> scheduleDailyVoidingSlots({
+  Future<DateTime?> scheduleDailyVoidingSlots({
     required String scheduleId,
     required String title,
     required String startTime,
@@ -76,11 +98,13 @@ class NotificationService {
     await init();
     await cancelScheduleAlarms(scheduleId);
 
+    if (intervalMinutes <= 0) return null;
+
     final startParts = startTime.split(':').map(int.parse).toList();
     final endParts = endTime.split(':').map(int.parse).toList();
 
     final now = DateTime.now();
-    var currentSlotTime = DateTime(
+    final startDateTime = DateTime(
       now.year,
       now.month,
       now.day,
@@ -95,130 +119,74 @@ class NotificationService {
       endParts[1],
     );
 
-    int slotIndex = 0;
-    while (!currentSlotTime.isAfter(endDateTime)) {
-      final notificationId = (scheduleId.hashCode ^ slotIndex).toSigned(31);
+    DateTime nextTargetTime;
 
-      const androidDetails = AndroidNotificationDetails(
-        'voiding_reminders',
-        'Timed Voiding Alarms',
-        channelDescription: 'Reminders for timed voiding routine',
-        importance: Importance.max,
-        priority: Priority.high,
-        actions: <AndroidNotificationAction>[
-          AndroidNotificationAction(
-            'voiding_success',
-            'Peed Successfully',
-            showsUserInterface: false,
-          ),
-          AndroidNotificationAction(
-            'voiding_accident',
-            'Had Accident',
-            showsUserInterface: false,
-          ),
-        ],
-      );
-
-      await flutterLocalNotificationsPlugin.zonedSchedule(
-        notificationId,
-        '🚽 $title',
-        'Time for a scheduled bathroom break!',
-        _nextInstanceOfTime(
-          startParts[0],
-          startParts[1],
-          slotIndex * intervalMinutes,
-        ),
-        const NotificationDetails(android: androidDetails),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time,
-        payload: 'voiding_slot_$scheduleId',
-      );
-
-      currentSlotTime = currentSlotTime.add(Duration(minutes: intervalMinutes));
-      slotIndex++;
-    }
-  }
-
-  /// Resets and pushes the next alarm forward when a voiding occurs
-  Future<void> resetTimerForActiveSchedules(AppDatabase db) async {
-    await init();
-    final activeSchedules = await (db.select(
-      db.voidingSchedules,
-    )..where((t) => t.isActive.equals(true))).get();
-
-    for (final s in activeSchedules) {
-      await cancelScheduleAlarms(s.id);
-
-      final endParts = s.endTime.split(':').map(int.parse).toList();
-      final now = DateTime.now();
-      final endDateTime = DateTime(
-        now.year,
-        now.month,
-        now.day,
-        endParts[0],
-        endParts[1],
-      );
-
-      final nextAlarmTime = now.add(Duration(minutes: s.intervalMinutes));
-
-      // Only schedule if the reset time falls before the end time
-      if (!nextAlarmTime.isAfter(endDateTime)) {
-        final notificationId = (s.id.hashCode ^ 0).toSigned(31);
-
-        const androidDetails = AndroidNotificationDetails(
-          'voiding_reminders',
-          'Timed Voiding Alarms',
-          channelDescription: 'Reminders for timed voiding routine',
-          importance: Importance.max,
-          priority: Priority.high,
-        );
-
-        await flutterLocalNotificationsPlugin.zonedSchedule(
-          notificationId,
-          '🚽 ${s.title}',
-          'Time for a scheduled bathroom break!',
-          tz.TZDateTime.from(nextAlarmTime, tz.local),
-          const NotificationDetails(android: androidDetails),
-          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-          uiLocalNotificationDateInterpretation:
-              UILocalNotificationDateInterpretation.absoluteTime,
-          payload: 'voiding_reset_${s.id}',
-        );
+    if (now.isBefore(startDateTime)) {
+      nextTargetTime = startDateTime;
+    } else if (now.isBefore(endDateTime)) {
+      nextTargetTime = now.add(Duration(minutes: intervalMinutes));
+      if (nextTargetTime.isAfter(endDateTime)) {
+        nextTargetTime = startDateTime.add(const Duration(days: 1));
+      }
+    } else {
+      // Testing or late evening override
+      if (intervalMinutes <= 30) {
+        nextTargetTime = now.add(Duration(minutes: intervalMinutes));
+      } else {
+        nextTargetTime = startDateTime.add(const Duration(days: 1));
       }
     }
-  }
 
-  tz.TZDateTime _nextInstanceOfTime(
-    int startHour,
-    int startMinute,
-    int addedMinutes,
-  ) {
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduledDate = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      startHour,
-      startMinute,
-    ).add(Duration(minutes: addedMinutes));
-
-    if (scheduledDate.isBefore(now)) {
-      scheduledDate = scheduledDate.add(const Duration(days: 1));
+    if (nextTargetTime.difference(now).inSeconds < 2) {
+      nextTargetTime = now.add(const Duration(seconds: 4));
     }
-    return scheduledDate;
-  }
 
-  Future<void> cancelScheduleAlarms(
-    String scheduleId, {
-    int maxSlots = 20,
-  }) async {
-    for (int i = 0; i < maxSlots; i++) {
-      final id = (scheduleId.hashCode ^ i).toSigned(31);
-      await flutterLocalNotificationsPlugin.cancel(id);
-    }
+    currentNextAlarm = nextTargetTime;
+    _nextAlarmController.add(currentNextAlarm);
+
+    final notificationId = (scheduleId.hashCode & 0x7FFFFFFF);
+
+    final androidDetails = AndroidNotificationDetails(
+      'voiding_alarms_v2',
+      'Timed Voiding High Priority Alarms',
+      channelDescription: 'Loud reminders for pediatric timed voiding routine',
+      importance: Importance.max,
+      priority: Priority.max,
+      playSound: true,
+      enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 500, 200, 500]),
+      visibility: NotificationVisibility.public,
+      category: AndroidNotificationCategory.alarm,
+      fullScreenIntent: true,
+      actions: const <AndroidNotificationAction>[
+        AndroidNotificationAction(
+          'voiding_success',
+          'رفتم دستشویی (موفق)',
+          showsUserInterface: false,
+        ),
+        AndroidNotificationAction(
+          'voiding_accident',
+          'تصادف / خیس',
+          showsUserInterface: false,
+        ),
+      ],
+    );
+
+    final scheduledTZ = tz.TZDateTime.from(nextTargetTime, tz.local);
+
+    await flutterLocalNotificationsPlugin.zonedSchedule(
+      notificationId,
+      '🚽 $title',
+      'زمان دستشویی رفتن فرارسیده است!',
+      scheduledTZ,
+      NotificationDetails(android: androidDetails),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: 'voiding_slot_$scheduleId',
+    );
+
+    return nextTargetTime;
   }
 
   Future<void> scheduleMorningEnuresisPrompt() async {
@@ -246,8 +214,8 @@ class NotificationService {
 
     await flutterLocalNotificationsPlugin.zonedSchedule(
       9999,
-      '🌅 Morning Dry Night Check',
-      'How was last night? Tap to log enuresis status.',
+      '🌅 بررسی شب‌ادراری صبحگاهی',
+      'دیشب چطور بود؟ وضعیت شب گذشته را ثبت کنید.',
       scheduledDate,
       const NotificationDetails(android: androidDetails),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
@@ -256,6 +224,30 @@ class NotificationService {
       matchDateTimeComponents: DateTimeComponents.time,
       payload: 'enuresis_prompt',
     );
+  }
+
+  Future<void> resetTimerForActiveSchedules(AppDatabase db) async {
+    await init();
+    final activeSchedules = await (db.select(
+      db.voidingSchedules,
+    )..where((t) => t.isActive.equals(true))).get();
+
+    for (final s in activeSchedules) {
+      await scheduleDailyVoidingSlots(
+        scheduleId: s.id,
+        title: s.title,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        intervalMinutes: s.intervalMinutes,
+      );
+    }
+  }
+
+  Future<void> cancelScheduleAlarms(String scheduleId) async {
+    final id = (scheduleId.hashCode & 0x7FFFFFFF);
+    await flutterLocalNotificationsPlugin.cancel(id);
+    currentNextAlarm = null;
+    _nextAlarmController.add(null);
   }
 
   Future<void> handleNotificationAction(
@@ -304,5 +296,7 @@ class NotificationService {
 
   Future<void> cancelAll() async {
     await flutterLocalNotificationsPlugin.cancelAll();
+    currentNextAlarm = null;
+    _nextAlarmController.add(null);
   }
 }
