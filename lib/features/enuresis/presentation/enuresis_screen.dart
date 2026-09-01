@@ -1,13 +1,12 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:table_calendar/table_calendar.dart';
+import 'package:shamsi_date/shamsi_date.dart';
 import 'package:uuid/uuid.dart';
-import 'package:drift/drift.dart' show Value;
+
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
-import '../../../core/utils/date_utils.dart';
-import 'package:shamsi_date/shamsi_date.dart';
 import 'widgets/jalali_calendar_grid.dart';
 
 class EnuresisScreen extends ConsumerStatefulWidget {
@@ -76,10 +75,15 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: const Color(0xFF0F172A),
           content: Text(
             isDry
-                ? 'آفرین! یک شب خشک دیگر ثبت شد 🌟'
-                : 'وضعیت شب گذشته ثبت شد 🌙',
+                ? 'آفرین! یک شب خشک دیگر ثبت گردید 🌟'
+                : 'وضعیت شب گذشته با موفقیت ثبت شد 🌙',
           ),
           duration: const Duration(seconds: 2),
         ),
@@ -95,15 +99,16 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return Padding(
               padding: EdgeInsets.only(
-                top: 20,
+                top: 16,
                 left: 20,
                 right: 20,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
@@ -112,33 +117,66 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'جزئیات شب خیس (تصادف شبانه)',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'جزئیات تصادف شبانه (شب خیس)',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 16),
                   SwitchListTile(
-                    title: const Text('برای ادرار بیدار شد؟'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'برای تخلیه ادرار در طول شب بیدار شد؟',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     value: wokeToPee,
+                    activeColor: const Color(0xFF0284C7),
                     onChanged: (v) => setSheetState(() => wokeToPee = v),
                   ),
                   SwitchListTile(
-                    title: const Text('محدودیت مایعات شبانه رعایت شد؟'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'محدودیت مصرف مایعات عصر/شب رعایت شد؟',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
                     value: fluidRestriction,
+                    activeColor: const Color(0xFF0284C7),
                     onChanged: (v) => setSheetState(() => fluidRestriction = v),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: notesCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'یادداشت (اختیاری)',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: 'یادداشت یا مشاهده خاص (اختیاری)',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFD97706),
+                      ),
                       onPressed: () {
                         Navigator.pop(ctx);
                         _saveNightStatus(
@@ -151,7 +189,7 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                               : notesCtrl.text.trim(),
                         );
                       },
-                      child: const Text('ذخیره'),
+                      child: const Text('ذخیره وضعیت شب خیس'),
                     ),
                   ),
                 ],
@@ -168,13 +206,7 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
     final enuresisAsync = ref.watch(enuresisLogsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'پیگیری شب‌ادراری',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('پیگیری شب‌ادراری (Enuresis)')),
       body: enuresisAsync.when(
         data: (logs) {
           final Map<String, EnuresisLogEntity> logMap = {
@@ -206,33 +238,47 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
           final selectedLog = logMap[selectedDateStr];
 
           return ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
             children: [
-              // Streak Stat Cards
+              // Streaks Dashboard
               Row(
                 children: [
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.green.shade200),
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'رکورد فعلی خشک ☀️',
-                            style: TextStyle(fontSize: 12, color: Colors.green),
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.wb_sunny_rounded,
+                                color: Color(0xFF059669),
+                                size: 18,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'رکورد فعلی خشک',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF059669),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 8),
                           Text(
                             '$currentStreak روز',
                             style: const TextStyle(
                               fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF065F46),
                             ),
                           ),
                         ],
@@ -242,26 +288,40 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Container(
-                      padding: const EdgeInsets.all(14),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.blue.shade200),
+                        color: const Color(0xFFF0F9FF),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFBAE6FD)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'بهترین رکورد 🏆',
-                            style: TextStyle(fontSize: 12, color: Colors.blue),
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.emoji_events_rounded,
+                                color: Color(0xFF0284C7),
+                                size: 18,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'بهترین رکورد',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0284C7),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 8),
                           Text(
                             '$longestStreak روز',
                             style: const TextStyle(
                               fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF075985),
                             ),
                           ),
                         ],
@@ -271,42 +331,51 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                 ],
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
-              // Morning Log Action Prompts
+              // Morning Log Buttons
               Text(
-                'وضعیت شب برای تاریخ $selectedDateStr:',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                'ثبت وضعیت بامداد برای تاریخ $selectedDateStr:',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF1E293B),
+                ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
 
               Row(
                 children: [
                   Expanded(
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
                       onTap: () => _saveNightStatus(ref, isDry: true),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        padding: const EdgeInsets.symmetric(vertical: 18),
                         decoration: BoxDecoration(
                           color: selectedLog?.isDry == true
-                              ? Colors.green.shade100
-                              : Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(16),
+                              ? const Color(0xFFD1FAE5)
+                              : const Color(0xFFECFDF5),
+                          borderRadius: BorderRadius.circular(18),
                           border: Border.all(
-                            color: Colors.green,
-                            width: selectedLog?.isDry == true ? 2.5 : 1,
+                            color: const Color(0xFF10B981),
+                            width: selectedLog?.isDry == true ? 2.5 : 1.2,
                           ),
                         ),
                         child: const Column(
                           children: [
-                            Icon(Icons.wb_sunny, size: 36, color: Colors.green),
+                            Icon(
+                              Icons.wb_sunny_rounded,
+                              size: 32,
+                              color: Color(0xFF059669),
+                            ),
                             SizedBox(height: 6),
                             Text(
                               'شب خشک (موفق)',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF065F46),
+                                fontSize: 13,
                               ),
                             ),
                           ],
@@ -317,35 +386,36 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
                       onTap: () => _showWetNightDetailsDialog(context, ref),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        padding: const EdgeInsets.symmetric(vertical: 18),
                         decoration: BoxDecoration(
                           color: selectedLog != null && !selectedLog.isDry
-                              ? Colors.amber.shade100
-                              : Colors.amber.shade50,
-                          borderRadius: BorderRadius.circular(16),
+                              ? const Color(0xFFFEF3C7)
+                              : const Color(0xFFFFFBEB),
+                          borderRadius: BorderRadius.circular(18),
                           border: Border.all(
-                            color: Colors.amber.shade800,
+                            color: const Color(0xFFF59E0B),
                             width: selectedLog != null && !selectedLog.isDry
                                 ? 2.5
-                                : 1,
+                                : 1.2,
                           ),
                         ),
-                        child: Column(
+                        child: const Column(
                           children: [
                             Icon(
                               Icons.nightlight_round,
-                              size: 36,
-                              color: Colors.amber.shade900,
+                              size: 32,
+                              color: Color(0xFFD97706),
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: 6),
                             Text(
                               'شب خیس (تصادف)',
                               style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.amber.shade900,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF92400E),
+                                fontSize: 13,
                               ),
                             ),
                           ],
@@ -356,33 +426,27 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                 ],
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
               // Calendar Card
-              Card(
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: Colors.grey.shade200),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: JalaliCalendarGrid(
-                    // Pass the active Gregorian date down as a Jalali date
-                    selectedDate: Jalali.fromDateTime(
-                      _selectedDay ?? DateTime.now(),
-                    ),
-                    // Receive the new Jalali date back and update local state
-                    onDaySelected: (newDate) {
-                      setState(() {
-                        _selectedDay = newDate.toDateTime();
-                      });
-                    },
-                    // Pass the O(1) hashmap directly to the calendar
-                    logMap: logMap,
+                child: JalaliCalendarGrid(
+                  selectedDate: Jalali.fromDateTime(
+                    _selectedDay ?? DateTime.now(),
                   ),
+                  onDaySelected: (newDate) {
+                    setState(() => _selectedDay = newDate.toDateTime());
+                  },
+                  logMap: logMap,
                 ),
               ),
+              const SizedBox(height: 24),
             ],
           );
         },

@@ -1,7 +1,8 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:drift/drift.dart' show Value;
+
 import '../../../core/providers.dart';
 import '../../../data/database/app_database.dart';
 
@@ -21,47 +22,54 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
   final _notesController = TextEditingController();
 
   final Map<int, _BristolInfo> _bristolData = {
-    1: _BristolInfo(
-      'نوع ۱: فندق‌های سخت',
-      'یبوست شدید (گلوله‌ای و جدا)',
-      Colors.brown.shade900,
+    1: const _BristolInfo(
+      'نوع ۱: فندق‌های سفت و مجزا',
+      'یبوست شدید (دفع بسیار سخت و دردناک)',
+      Color(0xFF78350F),
       '🪨',
+      'گلوله‌ای و خشک',
     ),
-    2: _BristolInfo(
-      'نوع ۲: سوسیس توده‌ای',
-      'یبوست خفیف (ناهموار و توده‌ای)',
-      Colors.brown.shade700,
+    2: const _BristolInfo(
+      'نوع ۲: سوسیسی توده‌ای و سفت',
+      'یبوست خفیف (قطعات متصل به هم)',
+      Color(0xFF92400E),
       '🥖',
+      'توده‌ای و ناهموار',
     ),
-    3: _BristolInfo(
-      'نوع ۳: سوسیس شیاردار',
-      'طبیعی (با شیار روی سطح)',
-      Colors.green.shade800,
+    3: const _BristolInfo(
+      'نوع ۳: سوسیسی با سطح شیاردار',
+      'طبیعی و سالم (دفع آسان)',
+      Color(0xFF059669),
       '🌭',
+      'دارای ترک روی سطح',
     ),
-    4: _BristolInfo(
-      'نوع ۴: مار مانند و نرم',
-      'ایده‌آل و کاملاً سالم',
-      Colors.green.shade600,
+    4: const _BristolInfo(
+      'نوع ۴: مارپیچ، نرم و صاف',
+      'ایده‌آل‌ترین حالت مدفوع کودکان',
+      Color(0xFF10B981),
       '✨',
+      'نرم، یکدست و منعطف',
     ),
-    5: _BristolInfo(
+    5: const _BristolInfo(
       'نوع ۵: لکه‌های نرم با لبه مشخص',
-      'کمبود فیبر در تغذیه',
-      Colors.amber.shade700,
+      'کمبود فیبر (عبور نسبتاً سریع)',
+      Color(0xFFD97706),
       '🍪',
+      'نرم با لبه‌های واضح',
     ),
-    6: _BristolInfo(
-      'نوع ۶: خمیری و بدون شکل',
-      'اسهال خفیف (کرکی و نامنظم)',
-      Colors.orange.shade800,
+    6: const _BristolInfo(
+      'نوع ۶: قطعات پف‌کرده و کرکی',
+      'اسهال خفیف یا التهاب گوارشی',
+      Color(0xFFEA580C),
       '🥞',
+      'خمیری و بدون شکل منظم',
     ),
-    7: _BristolInfo(
-      'نوع ۷: کاملاً آبکی',
-      'اسهال شدید (مایع بدون بخش جامد)',
-      Colors.red.shade700,
+    7: const _BristolInfo(
+      'نوع ۷: کاملاً آبکی بدون تکه جامد',
+      'اسهال شدید (نیاز به توجه هیدراتاسیون)',
+      Color(0xFFDC2626),
       '🌊',
+      'مایع شفاف یا کدر',
     ),
   };
 
@@ -75,9 +83,9 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
     showDialog(
       context: context,
       builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -85,36 +93,69 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'راهنمای مقیاس بریستول',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    'جدول تصویری مقیاس بریستول',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(Icons.close_rounded),
                     onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               ClipRRect(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 child: Image.network(
                   'https://encrypted-tbn1.gstatic.com/licensed-image?q=tbn:ANd9GcSIaKFnOd_4-A5IBVcpck0kpGbh7JZrs0uS9yqDYAuKfoNZpV0rbFdffgbxTgtdxt6-MzHAbXCdVeP2vT0',
-                  height: 320,
+                  height: 300,
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => Container(
+                    height: 180,
                     padding: const EdgeInsets.all(20),
                     alignment: Alignment.center,
-                    child: const Text(
-                      'تصویر در دسترس نیست (اتصال اینترنت را بررسی کنید).',
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.wifi_off_rounded,
+                          color: Color(0xFF94A3B8),
+                          size: 36,
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'تصویر در دسترس نیست (اتصال اینترنت را بررسی کنید).',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'انواع ۳ و ۴ حالت طبیعی و سالم هستند. انواع ۱ و ۲ نشان‌دهنده یبوست می‌باشند.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'انواع ۳ و ۴ حالت استاندارد و نرمال هستند. انواع ۱ و ۲ نشان‌دهنده یبوست، و انواع ۶ و ۷ اسهال می‌باشند.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF475569),
+                    height: 1.4,
+                  ),
+                ),
               ),
             ],
           ),
@@ -149,9 +190,14 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('وضعیت مدفوع ثبت شد ✅'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: const Color(0xFF0F172A),
+          content: const Text('وضعیت مدفوع با موفقیت ثبت شد ✅'),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -164,37 +210,51 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'ثبت مدفوع و مقیاس بریستول',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        elevation: 0,
+        title: const Text('ثبت مدفوع و مقیاس بریستول'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.help_outline),
+            icon: const Icon(Icons.help_outline_rounded),
             tooltip: 'مشاهده جدول تصویری بریستول',
             onPressed: () => _showBristolChartDialog(context),
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         children: [
-          // Selected Highlight Header Card
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: currentInfo.color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(16),
+              color: currentInfo.color.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: currentInfo.color.withValues(alpha: 0.4),
+                color: currentInfo.color.withOpacity(0.3),
                 width: 1.5,
               ),
             ),
             child: Row(
               children: [
-                Text(currentInfo.emoji, style: const TextStyle(fontSize: 36)),
-                const SizedBox(width: 14),
+                Container(
+                  width: 58,
+                  height: 58,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: currentInfo.color.withOpacity(0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    currentInfo.emoji,
+                    style: const TextStyle(fontSize: 28),
+                  ),
+                ),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,17 +262,18 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
                       Text(
                         currentInfo.title,
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
                           color: currentInfo.color,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         currentInfo.description,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey.shade800,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF475569),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -222,26 +283,32 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'انتخاب شکل مدفوع (مقیاس بریستول):',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                'انتخاب فرم مدفوع (مقیاس بریستول):',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF1E293B),
+                ),
               ),
               TextButton.icon(
-                icon: const Icon(Icons.image, size: 18),
-                label: const Text('جدول تصویری'),
+                icon: const Icon(Icons.image_outlined, size: 16),
+                label: const Text(
+                  'جدول تصویری',
+                  style: TextStyle(fontSize: 12),
+                ),
                 onPressed: () => _showBristolChartDialog(context),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
 
-          // Horizontal Visual Stool Type Selector
           SizedBox(
-            height: 90,
+            height: 96,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: 7,
@@ -253,25 +320,24 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
                 return GestureDetector(
                   onTap: () => setState(() => _bristolType = type),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 76,
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
+                    duration: const Duration(milliseconds: 200),
+                    width: 80,
+                    margin: const EdgeInsets.only(left: 8),
                     decoration: BoxDecoration(
-                      color: isSelected ? data.color : Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
+                      color: isSelected ? data.color : Colors.white,
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(
-                        color: isSelected ? data.color : Colors.grey.shade300,
-                        width: isSelected ? 2.5 : 1,
+                        color: isSelected
+                            ? data.color
+                            : const Color(0xFFE2E8F0),
+                        width: isSelected ? 2 : 1.2,
                       ),
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: data.color.withValues(alpha: 0.3),
-                                blurRadius: 6,
-                                offset: const Offset(0, 3),
+                                color: data.color.withOpacity(0.35),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
                               ),
                             ]
                           : null,
@@ -279,14 +345,16 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(data.emoji, style: const TextStyle(fontSize: 22)),
+                        Text(data.emoji, style: const TextStyle(fontSize: 24)),
                         const SizedBox(height: 4),
                         Text(
                           'نوع $type',
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isSelected ? Colors.white : Colors.black87,
+                            fontWeight: FontWeight.w800,
+                            color: isSelected
+                                ? Colors.white
+                                : const Color(0xFF1E293B),
                           ),
                         ),
                       ],
@@ -297,147 +365,258 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
             ),
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
-          // Clinical Observations Card
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.grey.shade200),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'شدت زور زدن / فشار:',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'شدت فشار و زور زدن هنگام دفع:',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF334155),
                   ),
-                  const SizedBox(height: 8),
-                  SegmentedButton<int>(
-                    segments: const [
-                      ButtonSegment(value: 1, label: Text('بدون فشار')),
-                      ButtonSegment(value: 2, label: Text('متوسط')),
-                      ButtonSegment(value: 3, label: Text('شدید')),
-                    ],
-                    selected: {_strainingLevel},
-                    onSelectionChanged: (val) =>
-                        setState(() => _strainingLevel = val.first),
+                ),
+                const SizedBox(height: 10),
+                SegmentedButton<int>(
+                  segments: const [
+                    ButtonSegment(value: 1, label: Text('راحت / عادی')),
+                    ButtonSegment(value: 2, label: Text('متوسط')),
+                    ButtonSegment(value: 3, label: Text('شدید')),
+                  ],
+                  selected: {_strainingLevel},
+                  onSelectionChanged: (val) =>
+                      setState(() => _strainingLevel = val.first),
+                ),
+                const Divider(height: 24, color: Color(0xFFF1F5F9)),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text(
+                    'مشاهده رگه‌های خون در مدفوع',
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    dense: true,
-                    title: const Text('خون در مدفوع دیده‌شد؟'),
-                    value: _bloodPresent,
-                    activeThumbColor: Colors.red,
-                    onChanged: (val) => setState(() => _bloodPresent = val),
+                  value: _bloodPresent,
+                  activeColor: const Color(0xFFEF4444),
+                  onChanged: (val) => setState(() => _bloodPresent = val),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text(
+                    'کثیف‌شدن لباس زیر (Encopresis)',
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  SwitchListTile(
-                    dense: true,
-                    title: const Text(
-                      'بی‌اختیاری یا کثیف‌شدن لباس زیر (انکوپرزیس)',
-                    ),
-                    value: _soilingAccident,
-                    activeThumbColor: Colors.red,
-                    onChanged: (val) => setState(() => _soilingAccident = val),
-                  ),
-                ],
-              ),
+                  value: _soilingAccident,
+                  activeColor: const Color(0xFFF59E0B),
+                  onChanged: (val) => setState(() => _soilingAccident = val),
+                ),
+              ],
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
-          // Action Submit Button
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              icon: const Icon(Icons.check_circle_outline),
-              label: const Text(
-                'ثبت مدفوع',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
+              icon: const Icon(Icons.check_circle_outline_rounded),
+              label: const Text('ثبت نوبت دفع مدفوع'),
               onPressed: () => _logBowel(ref),
             ),
           ),
 
-          const Divider(height: 32),
+          const SizedBox(height: 20),
 
-          const Text(
-            'تاریخچه ثبت‌های اخیر',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-
-          // History Feed
+          // Collapsible Dropdown for Recent Bowel Logs
           bowelLogsAsync.when(
             data: (logs) {
-              if (logs.isEmpty) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
-                      'هنوز ثبتی انجام نشده است.',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ),
-                );
-              }
-              return ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: logs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
-                itemBuilder: (context, index) {
-                  final log = logs[index];
-                  final info =
-                      _bristolData[log.bristolType] ?? _bristolData[4]!;
-                  final isAlert = log.bloodPresent || log.soilingAccident;
+              final displayLogs = logs.take(5).toList();
 
-                  return ListTile(
-                    tileColor: isAlert
-                        ? Colors.red.shade50
-                        : Colors.grey.shade50,
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Theme(
+                  data: Theme.of(
+                    context,
+                  ).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    initiallyExpanded: true,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(
-                        color: isAlert
-                            ? Colors.red.shade200
-                            : Colors.grey.shade200,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    collapsedShape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFECFDF5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.health_and_safety_rounded,
+                        color: Color(0xFF059669),
+                        size: 20,
                       ),
                     ),
-                    leading: CircleAvatar(
-                      backgroundColor: info.color.withValues(alpha: 0.15),
-                      child: Text(
-                        info.emoji,
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                    ),
-                    title: Text(
-                      info.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                    title: const Text(
+                      'سوابق ثبت مدفوع',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                     subtitle: Text(
-                      '${log.timestamp.hour.toString().padLeft(2, '0')}:${log.timestamp.minute.toString().padLeft(2, '0')} | فشار: ${log.strainingLevel == 1 ? "عادی" : (log.strainingLevel == 2 ? "متوسط" : "شدید")}${log.bloodPresent ? " • 🩸خون" : ""}${log.soilingAccident ? " • ⚠️کثیفی لباس" : ""}',
+                      logs.isEmpty
+                          ? 'هنوز ثبتی انجام نشده'
+                          : (logs.length > 5
+                                ? 'نمایش ۵ مورد از ${logs.length}'
+                                : '${logs.length} رویداد ثبت‌شده'),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
-                  );
-                },
+                    children: [
+                      if (logs.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Text(
+                              'هنوز ثبتی انجام نشده است.',
+                              style: TextStyle(color: Color(0xFF94A3B8)),
+                            ),
+                          ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: displayLogs.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final log = displayLogs[index];
+                              final info =
+                                  _bristolData[log.bristolType] ??
+                                  _bristolData[4]!;
+                              final bool hasFlag =
+                                  log.bloodPresent || log.soilingAccident;
+
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: hasFlag
+                                        ? const Color(0xFFFECACA)
+                                        : const Color(0xFFE2E8F0),
+                                    width: hasFlag ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: info.color.withOpacity(0.12),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Text(
+                                        info.emoji,
+                                        style: const TextStyle(fontSize: 18),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'نوع ${log.bristolType} • ${info.title.split(":")[1].trim()}',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'فشار: ${log.strainingLevel == 1 ? "عادی" : (log.strainingLevel == 2 ? "متوسط" : "شدید")}${log.bloodPresent ? " • 🩸خون" : ""}${log.soilingAccident ? " • ⚠️کثیفی لباس" : ""}',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: hasFlag
+                                                  ? const Color(0xFFDC2626)
+                                                  : const Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Directionality(
+                                      textDirection: TextDirection.ltr,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFFCBD5E1),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${log.timestamp.hour.toString().padLeft(2, '0')}:${log.timestamp.minute.toString().padLeft(2, '0')}',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF334155),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text('خطا: $e'),
           ),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -449,5 +628,13 @@ class _BristolInfo {
   final String description;
   final Color color;
   final String emoji;
-  const _BristolInfo(this.title, this.description, this.color, this.emoji);
+  final String feature;
+
+  const _BristolInfo(
+    this.title,
+    this.description,
+    this.color,
+    this.emoji,
+    this.feature,
+  );
 }

@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart' as pw;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:drift/drift.dart' show Value;
+
 import '../../../core/providers.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../data/database/app_database.dart';
@@ -161,61 +162,6 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
-    final db = ref.read(databaseProvider);
-    final voidingLogs = await db.select(db.voidingLogs).get();
-    final enuresisLogs = await db.select(db.enuresisLogs).get();
-    final bowelLogs = await db.select(db.bowelLogs).get();
-
-    final dir = await getApplicationDocumentsDirectory();
-    final timestamp = DateTime.now()
-        .toIso8601String()
-        .replaceAll(':', '-')
-        .substring(0, 19);
-
-    final voidingFile = File('${dir.path}/voiding_logs_$timestamp.csv');
-    final vBuffer = StringBuffer(
-      'ID,Timestamp,EventType,UrgencyLevel,VolumeEstimation,Notes\n',
-    );
-    for (final v in voidingLogs) {
-      vBuffer.writeln(
-        '${v.id},${v.timestamp.toIso8601String()},${v.eventType},${v.urgencyLevel ?? ""},${v.volumeEstimation ?? ""},"${v.notes?.replaceAll('"', '""') ?? ""}"',
-      );
-    }
-    await voidingFile.writeAsString(vBuffer.toString());
-
-    final enuresisFile = File('${dir.path}/enuresis_logs_$timestamp.csv');
-    final eBuffer = StringBuffer(
-      'ID,Date,IsDry,WokeToPee,EveningFluidRestriction,Notes\n',
-    );
-    for (final e in enuresisLogs) {
-      eBuffer.writeln(
-        '${e.id},${e.date},${e.isDry},${e.wokeToPee},${e.eveningFluidRestriction},"${e.notes?.replaceAll('"', '""') ?? ""}"',
-      );
-    }
-    await enuresisFile.writeAsString(eBuffer.toString());
-
-    final bowelFile = File('${dir.path}/bowel_logs_$timestamp.csv');
-    final bBuffer = StringBuffer(
-      'ID,Timestamp,BristolType,StrainingLevel,BloodPresent,SoilingAccident,Notes\n',
-    );
-    for (final b in bowelLogs) {
-      bBuffer.writeln(
-        '${b.id},${b.timestamp.toIso8601String()},${b.bristolType},${b.strainingLevel},${b.bloodPresent},${b.soilingAccident},"${b.notes?.replaceAll('"', '""') ?? ""}"',
-      );
-    }
-    await bowelFile.writeAsString(bBuffer.toString());
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('فایل‌های CSV در حافظه ذخیره شدند:\n${dir.path}'),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final evaluation = ref.watch(progressionEvaluationProvider);
@@ -224,19 +170,13 @@ class ReportsScreen extends ConsumerWidget {
     final bowelCount = ref.watch(bowelLogsProvider).value?.length ?? 0;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'تحلیل درمان و گزارش‌ها',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('تحلیل درمان و گزارش‌ها')),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         children: [
-          // 3-Day Interval Evaluation Card
+          // 3-Day Progression Card
           if (evaluation != null) ...[
-            _ProgressionCard(
+            _ProgressionBanner(
               evaluation: evaluation,
               onApply: (oldInterval, newInterval) => _applySuggestedInterval(
                 context,
@@ -245,82 +185,111 @@ class ReportsScreen extends ConsumerWidget {
                 newInterval,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 18),
           ],
 
-          // Clinical Summary Counts Card
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.grey.shade200),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'آمار کلی اطلاعات ثبت‌شده',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _CountBadge(
-                        label: 'ادرار روزانه',
-                        count: voidingCount,
-                        icon: Icons.water_drop,
-                        color: Colors.blue,
-                      ),
-                      _CountBadge(
-                        label: 'شب‌ادراری',
-                        count: enuresisCount,
-                        icon: Icons.nightlight_round,
-                        color: Colors.indigo,
-                      ),
-                      _CountBadge(
-                        label: 'مدفوع',
-                        count: bowelCount,
-                        icon: Icons.medical_services,
-                        color: Colors.brown,
-                      ),
-                    ],
-                  ),
-                ],
+          // Total Overview Grid
+          Row(
+            children: [
+              Expanded(
+                child: _MetricCard(
+                  title: 'ادرار روزانه',
+                  count: voidingCount,
+                  icon: Icons.water_drop_rounded,
+                  color: const Color(0xFF0284C7),
+                ),
               ),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MetricCard(
+                  title: 'شب‌ادراری',
+                  count: enuresisCount,
+                  icon: Icons.nightlight_rounded,
+                  color: const Color(0xFF6366F1),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _MetricCard(
+                  title: 'مدفوع',
+                  count: bowelCount,
+                  icon: Icons.health_and_safety_rounded,
+                  color: const Color(0xFF059669),
+                ),
+              ),
+            ],
           ),
 
           const SizedBox(height: 24),
 
-          // Action Buttons
+          // Primary Sharing Button
           FilledButton.icon(
             style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              backgroundColor: const Color(0xFF0F172A),
             ),
-            icon: const Icon(Icons.picture_as_pdf),
-            label: const Text(
-              'اشتراک‌گذاری گزارش بالینی (PDF) برای پزشک',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            icon: const Icon(
+              Icons.picture_as_pdf_rounded,
+              color: Color(0xFF38BDF8),
             ),
+            label: const Text('ایجاد و اشتراک PDF برای پزشک معالج'),
             onPressed: () => _generatePdfReport(context, ref),
           ),
           const SizedBox(height: 12),
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricCard extends StatelessWidget {
+  final String title;
+  final int count;
+  final IconData icon;
+  final Color color;
+
+  const _MetricCard({
+    required this.title,
+    required this.count,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
             ),
-            icon: const Icon(Icons.table_chart_outlined),
-            label: const Text('خروجی خام داده‌ها (CSV)'),
-            onPressed: () => _exportCsv(context, ref),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '$count',
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              color: Color(0xFF0F172A),
+            ),
+          ),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
+            ),
           ),
         ],
       ),
@@ -328,38 +297,25 @@ class ReportsScreen extends ConsumerWidget {
   }
 }
 
-class _ProgressionCard extends StatelessWidget {
+class _ProgressionBanner extends StatelessWidget {
   final IntervalEvaluationResult evaluation;
   final Function(int oldInterval, int newInterval) onApply;
 
-  const _ProgressionCard({required this.evaluation, required this.onApply});
-
-  Color _cardColor() {
-    switch (evaluation.status) {
-      case ProgressionStatus.progress:
-        return Colors.green;
-      case ProgressionStatus.regress:
-        return Colors.orange;
-      case ProgressionStatus.maintain:
-        return Colors.blue;
-      case ProgressionStatus.insufficientData:
-        return Colors.grey;
-    }
-  }
+  const _ProgressionBanner({required this.evaluation, required this.onApply});
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = _cardColor();
-    final canApply =
-        evaluation.status == ProgressionStatus.progress &&
-        evaluation.suggestedInterval != evaluation.currentInterval;
+    final isProgress = evaluation.status == ProgressionStatus.progress;
+    final color = isProgress
+        ? const Color(0xFF059669)
+        : const Color(0xFF0284C7);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: baseColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: baseColor.withValues(alpha: 0.4), width: 1.5),
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,17 +323,17 @@ class _ProgressionCard extends StatelessWidget {
           Row(
             children: [
               Icon(
-                evaluation.status == ProgressionStatus.progress
-                    ? Icons.trending_up
-                    : (evaluation.status == ProgressionStatus.regress
-                          ? Icons.trending_down
-                          : Icons.insights),
-                color: baseColor,
+                isProgress ? Icons.trending_up_rounded : Icons.insights_rounded,
+                color: color,
               ),
               const SizedBox(width: 8),
               const Text(
-                'ارزیابی پیشرفت ۳ روز اخیر',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                'تحلیل پیشرفت ۳ روز اخیر',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  color: Color(0xFF0F172A),
+                ),
               ),
               const Spacer(),
               Container(
@@ -386,114 +342,50 @@ class _ProgressionCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: baseColor,
-                  borderRadius: BorderRadius.circular(12),
+                  color: color,
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '${(evaluation.successRate * 100).toInt()}% موفقیت',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
                     fontSize: 12,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Text(
             evaluation.recommendationMessage,
-            style: TextStyle(
-              color: Colors.grey.shade800,
+            style: const TextStyle(
               fontSize: 13,
-              height: 1.4,
+              color: Color(0xFF334155),
+              height: 1.5,
             ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                'فاصله فعلی: ${evaluation.currentInterval} دقیقه',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              if (canApply) ...[
-                const SizedBox(width: 8),
-                const Icon(Icons.arrow_forward, size: 16, color: Colors.green),
-                const SizedBox(width: 8),
-                Text(
-                  'پیشنهادی: ${evaluation.suggestedInterval} دقیقه',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.green,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          if (canApply) ...[
+          if (isProgress &&
+              evaluation.suggestedInterval != evaluation.currentInterval) ...[
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                icon: const Icon(Icons.check, size: 18),
-                label: Text(
-                  'اعمال افزایش به ${evaluation.suggestedInterval} دقیقه',
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF059669),
                 ),
                 onPressed: () => onApply(
                   evaluation.currentInterval,
                   evaluation.suggestedInterval,
+                ),
+                child: Text(
+                  'اعمال ارتقای فاصله به ${evaluation.suggestedInterval} دقیقه',
                 ),
               ),
             ),
           ],
         ],
       ),
-    );
-  }
-}
-
-class _CountBadge extends StatelessWidget {
-  final String label;
-  final int count;
-  final IconData icon;
-  final Color color;
-
-  const _CountBadge({
-    required this.label,
-    required this.count,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        CircleAvatar(
-          backgroundColor: color.withValues(alpha: 0.1),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '$count',
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 11, color: Colors.black54),
-        ),
-      ],
     );
   }
 }

@@ -1,8 +1,9 @@
 import 'dart:async';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:drift/drift.dart' show Value;
+
 import '../../../core/providers.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../data/database/app_database.dart';
@@ -57,28 +58,10 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     return now.add(Duration(minutes: schedule.intervalMinutes));
   }
 
-  String _formatRemainingTime(DateTime? targetTime) {
-    if (targetTime == null) return 'یادآور غیرفعال است';
-    final now = DateTime.now();
-    final diff = targetTime.difference(now);
-
-    if (diff.isNegative) {
-      return '🔔 زمان دستشویی فرارسیده!';
-    }
-
-    final hours = diff.inHours;
-    final minutes = diff.inMinutes % 60;
-    final seconds = diff.inSeconds % 60;
-
-    if (hours > 0) {
-      return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} مانده تا آلارم';
-    }
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} مانده تا آلارم';
-  }
-
   Future<void> _quickLog(
     WidgetRef ref, {
     required String eventType,
+    DateTime? customTimestamp,
     int urgency = 1,
     String volume = 'medium',
     String? notes,
@@ -86,7 +69,7 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     final db = ref.read(databaseProvider);
     final log = VoidingLogsCompanion.insert(
       id: _uuid.v4(),
-      timestamp: DateTime.now(),
+      timestamp: customTimestamp ?? DateTime.now(),
       eventType: eventType,
       urgencyLevel: Value(urgency),
       volumeEstimation: Value(volume),
@@ -99,10 +82,27 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            eventType == 'prompted_success'
-                ? 'آفرین! ثبت شد و تایمر بعدی فعال شد 🌟'
-                : 'ثبت شد و تایمر بازنشانی شد ⏱️',
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: const Color(0xFF0F172A),
+          content: Row(
+            children: [
+              Icon(
+                eventType == 'prompted_success'
+                    ? Icons.check_circle
+                    : Icons.timer,
+                color: const Color(0xFF38BDF8),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                eventType == 'prompted_success'
+                    ? 'آفرین! ثبت شد و تایمر بعدی فعال گردید'
+                    : 'ثبت شد و زمان‌بندی بازنشانی شد',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
           ),
           duration: const Duration(seconds: 2),
         ),
@@ -163,8 +163,9 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
@@ -177,7 +178,7 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
 
             return Padding(
               padding: EdgeInsets.only(
-                top: 24,
+                top: 20,
                 left: 20,
                 right: 20,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
@@ -189,29 +190,30 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                   children: [
                     Center(
                       child: Container(
-                        width: 40,
-                        height: 4,
+                        width: 44,
+                        height: 5,
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
+                          color: const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'تنظیم زمان‌بندی: ${schedule.title}',
-                      style: const TextStyle(
+                    const SizedBox(height: 18),
+                    const Text(
+                      'تنظیم زمان‌بندی و ساعات یادآور ادرار',
+                      style: TextStyle(
                         fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
 
                     Row(
                       children: [
                         Expanded(
                           child: OutlinedButton.icon(
-                            icon: const Icon(Icons.wb_sunny_outlined),
+                            icon: const Icon(Icons.wb_sunny_outlined, size: 18),
                             label: Text('شروع: ${formatTime(startTime)}'),
                             onPressed: () async {
                               final picked = await showTimePicker(
@@ -224,10 +226,13 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                             },
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: OutlinedButton.icon(
-                            icon: const Icon(Icons.nightlight_outlined),
+                            icon: const Icon(
+                              Icons.nightlight_outlined,
+                              size: 18,
+                            ),
                             label: Text('پایان: ${formatTime(endTime)}'),
                             onPressed: () async {
                               final picked = await showTimePicker(
@@ -242,22 +247,18 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 18),
 
-                    Row(
+                    const Row(
                       children: [
-                        const Icon(
-                          Icons.bug_report,
-                          size: 16,
-                          color: Colors.orange,
-                        ),
-                        const SizedBox(width: 6),
+                        Icon(Icons.tune, size: 16, color: Color(0xFFD97706)),
+                        SizedBox(width: 6),
                         Text(
-                          'فواصل آزمایشی و تستی (دقیقه):',
+                          'فواصل آزمایشی و تستی:',
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade900,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF92400E),
                           ),
                         ),
                       ],
@@ -270,9 +271,9 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                         final selected = intervalMinutes == mins;
                         return ChoiceChip(
                           visualDensity: VisualDensity.compact,
-                          label: Text('$mins م'),
+                          label: Text('$mins د'),
                           selected: selected,
-                          selectedColor: Colors.orange.shade100,
+                          selectedColor: const Color(0xFFFEF3C7),
                           onSelected: (_) {
                             setSheetState(() {
                               intervalMinutes = mins;
@@ -285,10 +286,11 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                     const SizedBox(height: 14),
 
                     const Text(
-                      'فواصل استاندارد بالینی:',
+                      'فواصل استاندارد درمانی (دقیقه):',
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E293B),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -300,6 +302,7 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                         return ChoiceChip(
                           label: Text('$mins دقیقه'),
                           selected: selected,
+                          selectedColor: const Color(0xFFE0F2FE),
                           onSelected: (_) {
                             setSheetState(() {
                               intervalMinutes = mins;
@@ -314,10 +317,17 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                     TextField(
                       controller: customCtrl,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'فاصله دلخواه دستی (دقیقه)',
                         suffixText: 'دقیقه',
-                        border: OutlineInputBorder(),
+                        filled: true,
+                        fillColor: const Color(0xFFF8FAFC),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFE2E8F0),
+                          ),
+                        ),
                         isDense: true,
                       ),
                       onChanged: (val) {
@@ -327,14 +337,11 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                         }
                       },
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
 
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                        ),
                         onPressed: () async {
                           final parsed =
                               int.tryParse(customCtrl.text.trim()) ??
@@ -373,7 +380,7 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                           if (context.mounted) Navigator.pop(context);
                         },
                         child: Text(
-                          'ذخیره و فعال‌سازی ($intervalMinutes دقیقه)',
+                          'ذخیره و اعمال برنامه ($intervalMinutes دقیقه)',
                         ),
                       ),
                     ),
@@ -391,20 +398,25 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     String eventType = 'prompted_success';
     int urgency = 1;
     String volume = 'medium';
+    TimeOfDay logTime = TimeOfDay.now();
     final notesCtrl = TextEditingController();
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
       builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            String formatTime(TimeOfDay t) =>
+                '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
             return Padding(
               padding: EdgeInsets.only(
-                top: 20,
+                top: 16,
                 left: 20,
                 right: 20,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 24,
@@ -415,20 +427,59 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                 children: [
                   Center(
                     child: Container(
-                      width: 40,
-                      height: 4,
+                      width: 44,
+                      height: 5,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(2),
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 20),
                   const Text(
-                    'ثبت با جزئیات کامل',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    'ثبت رویداد با جزئیات بالینی',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 16),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'زمان وقوع رویداد:',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.access_time_rounded, size: 16),
+                          label: Text(formatTime(logTime)),
+                          onPressed: () async {
+                            final picked = await showTimePicker(
+                              context: context,
+                              initialTime: logTime,
+                            );
+                            if (picked != null) {
+                              setSheetState(() => logTime = picked);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  const Text(
+                    'نوع مراجعه:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   SegmentedButton<String>(
                     segments: const [
                       ButtonSegment(
@@ -439,26 +490,42 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                         value: 'spontaneous',
                         label: Text('خودبه‌خودی'),
                       ),
-                      ButtonSegment(value: 'accident', label: Text('تصادفی')),
+                      ButtonSegment(
+                        value: 'accident',
+                        label: Text('تصادفی / خیس'),
+                      ),
                     ],
                     selected: {eventType},
                     onSelectionChanged: (val) =>
                         setSheetState(() => eventType = val.first),
                   ),
-                  const SizedBox(height: 16),
-                  const Text('میزان فوریت:'),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'شدت فوریت (Urgency):',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
                   Slider(
                     value: urgency.toDouble(),
                     min: 1,
                     max: 3,
                     divisions: 2,
+                    activeColor: const Color(0xFF0284C7),
                     label: urgency == 1
                         ? 'عادی'
                         : (urgency == 2 ? 'متوسط' : 'شدید'),
                     onChanged: (val) =>
                         setSheetState(() => urgency = val.toInt()),
                   ),
-                  const Text('حجم تقریبی:'),
+                  const Text(
+                    'حجم تقریبی (Volume):',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   SegmentedButton<String>(
                     segments: const [
@@ -473,9 +540,18 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: notesCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'یادداشت (اختیاری)',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      labelText: 'یادداشت یا مشاهده خاص (اختیاری)',
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -484,9 +560,18 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                     child: FilledButton(
                       onPressed: () {
                         Navigator.pop(ctx);
+                        final now = DateTime.now();
+                        final customDate = DateTime(
+                          now.year,
+                          now.month,
+                          now.day,
+                          logTime.hour,
+                          logTime.minute,
+                        );
                         _quickLog(
                           ref,
                           eventType: eventType,
+                          customTimestamp: customDate,
                           urgency: urgency,
                           volume: volume,
                           notes: notesCtrl.text.trim().isEmpty
@@ -494,7 +579,7 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                               : notesCtrl.text.trim(),
                         );
                       },
-                      child: const Text('ذخیره'),
+                      child: const Text('ذخیره و ثبت در سیستم'),
                     ),
                   ),
                 ],
@@ -519,21 +604,17 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'برنامه ادرار روزانه',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        elevation: 0,
+        title: const Text('برنامه زمان‌بندی ادرار'),
         actions: [
           IconButton(
             icon: const Icon(Icons.notifications_active_outlined),
-            tooltip: 'درخواست مجوزهای هشدار دقیق',
+            tooltip: 'مجوز اعلان‌ها',
             onPressed: () async {
               await NotificationService.instance.requestPermissions();
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('مجوزهای هشدار و اعلان درخواست شد 🔔'),
+                    content: Text('مجوزهای اعلان بازبینی شدند 🔔'),
                   ),
                 );
               }
@@ -542,9 +623,8 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         children: [
-          // Responsive Overflow-Free Countdown Card
           schedulesAsync.when(
             data: (schedules) {
               final s = schedules.isNotEmpty ? schedules.first : null;
@@ -552,228 +632,183 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
               final logs = logsAsync.value ?? [];
               final targetTime = _calculateTargetTime(s, logs);
 
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isActive
-                        ? [Colors.blue.shade700, Colors.blue.shade900]
-                        : [Colors.grey.shade700, Colors.grey.shade800],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: (isActive ? Colors.blue : Colors.black).withValues(
-                        alpha: 0.3,
-                      ),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top Bar (Constrained Row)
-                    Row(
-                      children: [
-                        Icon(
-                          isActive
-                              ? Icons.timer_outlined
-                              : Icons.timer_off_outlined,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            isActive ? 'یادآور فعال است' : 'یادآور خاموش است',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (s != null) ...[
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            icon: const Icon(
-                              Icons.tune,
-                              color: Colors.white70,
-                              size: 20,
-                            ),
-                            tooltip: 'تنظیم برنامه',
-                            onPressed: () =>
-                                _showEditScheduleDialog(context, s),
-                          ),
-                          Transform.scale(
-                            scale: 0.85,
-                            child: Switch(
-                              value: isActive,
-                              activeTrackColor: Colors.greenAccent.shade400,
-                              onChanged: (val) async {
-                                final db = ref.read(databaseProvider);
-                                await (db.update(
-                                  db.voidingSchedules,
-                                )..where((t) => t.id.equals(s.id))).write(
-                                  VoidingSchedulesCompanion(
-                                    isActive: Value(val),
-                                  ),
-                                );
-                                if (val) {
-                                  await NotificationService.instance
-                                      .scheduleDailyVoidingSlots(
-                                        scheduleId: s.id,
-                                        title: s.title,
-                                        startTime: s.startTime,
-                                        endTime: s.endTime,
-                                        intervalMinutes: s.intervalMinutes,
-                                      );
-                                } else {
-                                  await NotificationService.instance
-                                      .cancelScheduleAlarms(s.id);
-                                }
-                              },
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 8),
+              return _HeroTimerWidget(
+                schedule: s,
+                isActive: isActive,
+                targetTime: targetTime,
+                onEditSchedule: s != null
+                    ? () => _showEditScheduleDialog(context, s)
+                    : null,
+                onToggleActive: (val) async {
+                  if (s == null) return;
+                  final db = ref.read(databaseProvider);
+                  await (db.update(db.voidingSchedules)
+                        ..where((t) => t.id.equals(s.id)))
+                      .write(VoidingSchedulesCompanion(isActive: Value(val)));
 
-                    // Countdown Display
-                    Text(
-                      isActive
-                          ? _formatRemainingTime(targetTime)
-                          : 'برای شروع یادآوری، کلید بالا را روشن کنید',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: isActive ? 20 : 14,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                    if (isActive && s != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'بازه: ${s.startTime} تا ${s.endTime} | هر ${s.intervalMinutes} دقیقه',
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                  if (val) {
+                    await NotificationService.instance
+                        .scheduleDailyVoidingSlots(
+                          scheduleId: s.id,
+                          title: s.title,
+                          startTime: s.startTime,
+                          endTime: s.endTime,
+                          intervalMinutes: s.intervalMinutes,
+                        );
+                  } else {
+                    await NotificationService.instance.cancelScheduleAlarms(
+                      s.id,
+                    );
+                  }
+                },
               );
             },
-            loading: () => const SizedBox.shrink(),
+            loading: () => const SizedBox(height: 180),
             error: (_, __) => const SizedBox.shrink(),
           ),
 
-          // Progression Offer Banner
           if (canProgress) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.all(14),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.green.shade300, width: 1.5),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFF6EE7B7), width: 1.5),
               ),
               child: Row(
                 children: [
-                  const CircleAvatar(
-                    backgroundColor: Colors.green,
-                    child: Icon(Icons.star, color: Colors.white, size: 22),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF059669),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.rocket_launch_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'ارتقای فاصله ادرار آماده است! 🚀',
+                          'پیشنهاد افزایش فاصله! 🎉',
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF065F46),
                             fontSize: 14,
-                            color: Colors.green,
                           ),
                         ),
+                        const SizedBox(height: 2),
                         Text(
                           '${progression.currentInterval} دقیقه ➔ ${progression.suggestedInterval} دقیقه (${(progression.successRate * 100).toInt()}% موفق)',
-                          style: TextStyle(
+                          style: const TextStyle(
+                            color: Color(0xFF047857),
                             fontSize: 12,
-                            color: Colors.green.shade900,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF059669),
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                        horizontal: 14,
+                        vertical: 10,
                       ),
                     ),
                     onPressed: () => _applyProgression(
                       progression.currentInterval,
                       progression.suggestedInterval,
                     ),
-                    child: const Text(
-                      'افزایش',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                    child: const Text('اعمال', style: TextStyle(fontSize: 13)),
                   ),
                 ],
               ),
             ),
           ],
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
-          // Big One-Tap Action Card
-          Card(
-            elevation: 0,
-            color: Colors.green.shade50,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-              side: BorderSide(color: Colors.green.shade200),
+          const Text(
+            'ثبت سریع رویداد',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF334155),
             ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () => _quickLog(ref, eventType: 'prompted_success'),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                child: Column(
-                  children: [
-                    Icon(Icons.check_circle, size: 48, color: Colors.green),
-                    SizedBox(height: 8),
-                    Text(
-                      'رفتم دستشویی (موفق)',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'ثبت سریع و شروع فاصله بعدی',
-                      style: TextStyle(fontSize: 13, color: Colors.black54),
-                    ),
-                  ],
+          ),
+          const SizedBox(height: 10),
+
+          InkWell(
+            borderRadius: BorderRadius.circular(22),
+            onTap: () => _quickLog(ref, eventType: 'prompted_success'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF059669), Color(0xFF10B981)],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
                 ),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF10B981).withOpacity(0.3),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      size: 32,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'توالت موفق (با یادآوری)',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'ثبت آنی و شروع شمارش معکوس نوبت بعدی',
+                          style: TextStyle(fontSize: 12, color: Colors.white70),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white70,
+                    size: 18,
+                  ),
+                ],
               ),
             ),
           ),
@@ -783,119 +818,566 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: const Icon(Icons.bolt, color: Colors.amber),
-                  label: const Text('خودبه‌خودی'),
-                  onPressed: () => _quickLog(ref, eventType: 'spontaneous'),
+                child: _QuickActionTile(
+                  icon: Icons.bolt_rounded,
+                  iconColor: const Color(0xFFD97706),
+                  bgColor: const Color(0xFFFFFBEB),
+                  borderColor: const Color(0xFFFDE68A),
+                  title: 'خودبه‌خودی',
+                  subtitle: 'بدون آلارم',
+                  onTap: () => _quickLog(ref, eventType: 'spontaneous'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    foregroundColor: Colors.red.shade700,
-                    side: BorderSide(color: Colors.red.shade200),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: const Icon(
-                    Icons.warning_amber_rounded,
-                    color: Colors.red,
-                  ),
-                  label: const Text('تصادف/خیس'),
-                  onPressed: () =>
+                child: _QuickActionTile(
+                  icon: Icons.warning_amber_rounded,
+                  iconColor: const Color(0xFFDC2626),
+                  bgColor: const Color(0xFFFEF2F2),
+                  borderColor: const Color(0xFFFECACA),
+                  title: 'خیس‌شدن',
+                  subtitle: 'تصادف لباس',
+                  onTap: () =>
                       _quickLog(ref, eventType: 'accident', urgency: 3),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
-          TextButton.icon(
-            icon: const Icon(Icons.tune, size: 18),
-            label: const Text('ثبت با جزئیات بیشتر (حجم، فوریت، یادداشت)...'),
-            onPressed: () => _showDetailedLogSheet(context),
+          Center(
+            child: TextButton.icon(
+              icon: const Icon(Icons.edit_note_rounded, size: 20),
+              label: const Text(
+                'ثبت با جزئیات کامل (تنظیم زمان، حجم، فوریت)...',
+              ),
+              onPressed: () => _showDetailedLogSheet(context),
+            ),
           ),
 
-          const Divider(height: 32),
+          const SizedBox(height: 14),
 
-          const Text(
-            'رویدادهای ثبت‌شده امروز',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-
+          // Collapsible Dropdown for Recent Voidings
           logsAsync.when(
             data: (logs) {
-              if (logs.isEmpty) {
-                return Container(
-                  padding: const EdgeInsets.all(24),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'هنوز ثبتی انجام نشده است.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                );
-              }
-              return ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: logs.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
-                itemBuilder: (context, index) {
-                  final log = logs[index];
-                  final isAccident = log.eventType == 'accident';
-                  final isSuccess = log.eventType == 'prompted_success';
+              final displayLogs = logs.take(5).toList();
 
-                  return ListTile(
-                    tileColor: isAccident
-                        ? Colors.red.shade50
-                        : (isSuccess
-                              ? Colors.green.shade50
-                              : Colors.grey.shade100),
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Theme(
+                  data: Theme.of(
+                    context,
+                  ).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    initiallyExpanded: true,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    leading: Icon(
-                      isAccident
-                          ? Icons.warning
-                          : (isSuccess ? Icons.check_circle : Icons.water_drop),
-                      color: isAccident
-                          ? Colors.red
-                          : (isSuccess ? Colors.green : Colors.blue),
+                    collapsedShape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    title: Text(
-                      isSuccess
-                          ? 'موفق با یادآوری'
-                          : (isAccident ? 'تصادف' : 'خودبه‌خودی'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF0F9FF),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.history_rounded,
+                        color: Color(0xFF0284C7),
+                        size: 20,
+                      ),
+                    ),
+                    title: const Text(
+                      'ثبت‌های اخیر ادرار',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
                       ),
                     ),
                     subtitle: Text(
-                      '${log.timestamp.hour.toString().padLeft(2, '0')}:${log.timestamp.minute.toString().padLeft(2, '0')}',
+                      logs.isEmpty
+                          ? 'هنوز ثبتی انجام نشده'
+                          : (logs.length > 5
+                                ? 'نمایش ۵ مورد از ${logs.length}'
+                                : '${logs.length} رویداد ثبت‌شده'),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
                     ),
-                    trailing: log.notes != null
-                        ? const Icon(Icons.note, size: 16, color: Colors.grey)
-                        : null,
-                  );
-                },
+                    children: [
+                      if (logs.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: Text(
+                              'هنوز ثبتی در برنامه انجام نشده است.',
+                              style: TextStyle(color: Color(0xFF94A3B8)),
+                            ),
+                          ),
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: displayLogs.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 8),
+                            itemBuilder: (context, index) {
+                              final log = displayLogs[index];
+                              final isAccident = log.eventType == 'accident';
+                              final isSuccess =
+                                  log.eventType == 'prompted_success';
+
+                              final Color statusColor = isAccident
+                                  ? const Color(0xFFEF4444)
+                                  : (isSuccess
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFF0284C7));
+
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: const Color(0xFFE2E8F0),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: statusColor.withOpacity(0.12),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        isAccident
+                                            ? Icons.warning_rounded
+                                            : (isSuccess
+                                                  ? Icons.check_circle_rounded
+                                                  : Icons.water_drop_rounded),
+                                        color: statusColor,
+                                        size: 18,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            isSuccess
+                                                ? 'موفق با یادآوری'
+                                                : (isAccident
+                                                      ? 'تصادف / خیس شدن'
+                                                      : 'مراجعه خودبه‌خودی'),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 13,
+                                              color: Color(0xFF0F172A),
+                                            ),
+                                          ),
+                                          if (log.notes != null &&
+                                              log.notes!.isNotEmpty)
+                                            Text(
+                                              log.notes!,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: Color(0xFF64748B),
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    Directionality(
+                                      textDirection: TextDirection.ltr,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0xFFCBD5E1),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${log.timestamp.hour.toString().padLeft(2, '0')}:${log.timestamp.minute.toString().padLeft(2, '0')}',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF334155),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               );
             },
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text('خطا: $e'),
           ),
+          const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+}
+
+class _HeroTimerWidget extends StatelessWidget {
+  final VoidingScheduleEntity? schedule;
+  final bool isActive;
+  final DateTime? targetTime;
+  final VoidCallback? onEditSchedule;
+  final ValueChanged<bool> onToggleActive;
+
+  const _HeroTimerWidget({
+    required this.schedule,
+    required this.isActive,
+    required this.targetTime,
+    required this.onEditSchedule,
+    required this.onToggleActive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final diff = targetTime?.difference(now) ?? Duration.zero;
+    final isAlarmReady = diff.isNegative && isActive;
+
+    final hours = diff.inHours.clamp(0, 99);
+    final minutes = (diff.inMinutes % 60).clamp(0, 59);
+    final seconds = (diff.inSeconds % 60).clamp(0, 59);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isActive
+              ? [const Color(0xFF0F172A), const Color(0xFF1E293B)]
+              : [const Color(0xFF475569), const Color(0xFF334155)],
+          begin: Alignment.topRight,
+          end: Alignment.bottomLeft,
+        ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withOpacity(0.25),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? const Color(0xFF34D399)
+                          : const Color(0xFF94A3B8),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isActive ? 'تایمر یادآوری فعال' : 'تایمر غیرفعال',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  if (onEditSchedule != null)
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: const Icon(
+                        Icons.settings_suggest_rounded,
+                        color: Colors.white70,
+                      ),
+                      tooltip: 'تنظیم برنامه و فواصل زمانی',
+                      onPressed: onEditSchedule,
+                    ),
+                  Switch(
+                    value: isActive,
+                    activeColor: const Color(0xFF38BDF8),
+                    activeTrackColor: const Color(0xFF0284C7),
+                    onChanged: onToggleActive,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (isAlarmReady)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withOpacity(0.2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFEF4444)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(
+                    Icons.alarm_on_rounded,
+                    color: Color(0xFFFCA5A5),
+                    size: 24,
+                  ),
+                  SizedBox(width: 10),
+                  Text(
+                    'زمان دستشویی رفتن فرارسیده است!',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            // Force LTR on Clock Display
+            Directionality(
+              textDirection: TextDirection.ltr,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (hours > 0) ...[
+                    _TimeDigitCard(
+                      value: hours.toString().padLeft(2, '0'),
+                      label: 'ساعت',
+                    ),
+                    const Text(
+                      ' : ',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                  _TimeDigitCard(
+                    value: minutes.toString().padLeft(2, '0'),
+                    label: 'دقیقه',
+                  ),
+                  const Text(
+                    ' : ',
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  _TimeDigitCard(
+                    value: seconds.toString().padLeft(2, '0'),
+                    label: 'ثانیه',
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 14),
+          if (schedule != null)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Directionality(
+                  textDirection: TextDirection.ltr,
+                  child: Text(
+                    '${schedule!.startTime} – ${schedule!.endTime}',
+                    style: const TextStyle(
+                      color: Colors.white60,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: onEditSchedule,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withOpacity(0.12)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.edit_rounded,
+                          color: Color(0xFF38BDF8),
+                          size: 13,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'هر ${schedule!.intervalMinutes} دقیقه',
+                          style: const TextStyle(
+                            color: Color(0xFF38BDF8),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimeDigitCard extends StatelessWidget {
+  final String value;
+  final String label;
+
+  const _TimeDigitCard({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withOpacity(0.12)),
+          ),
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              color: Colors.white,
+              letterSpacing: 2,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: Colors.white54),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuickActionTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final Color bgColor;
+  final Color borderColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _QuickActionTile({
+    required this.icon,
+    required this.iconColor,
+    required this.bgColor,
+    required this.borderColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor, width: 1.2),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: borderColor),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: iconColor,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
