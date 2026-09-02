@@ -591,11 +591,118 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     );
   }
 
+  Future<void> _handleSubmitPee(
+    WidgetRef ref, {
+    required DateTime? targetTime,
+    required bool isActive,
+  }) async {
+    if (targetTime == null || !isActive) {
+      await _quickLog(ref, eventType: 'spontaneous');
+      return;
+    }
+
+    final now = DateTime.now();
+    final diff = targetTime.difference(now);
+
+    // 1. If timer has already finished or is due right now -> prompted success
+    if (diff.isNegative || diff.inSeconds <= 0) {
+      await _quickLog(ref, eventType: 'prompted_success');
+      return;
+    }
+
+    // 2. If close to timer expiring (< 10 minutes) -> intercept with encouraging hold prompt
+    const thresholdMinutes = 10;
+    if (diff.inMinutes < thresholdMinutes) {
+      final remainingMinutes = diff.inMinutes > 0 ? diff.inMinutes : 1;
+
+      final bool? wentAnyway = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: const Row(
+            children: [
+              Icon(
+                Icons.emoji_events_rounded,
+                color: Color(0xFFF59E0B),
+                size: 28,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'کمی بیشتر صبر کن!',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              ),
+            ],
+          ),
+          content: Text(
+            'فقط $remainingMinutes دقیقه تا موعد بعدی دستشویی مانده! ⏳\n\n'
+            'قهرمان، اگر می‌تونی چند دقیقه بیشتر نگه دار تا مثانه‌ات قوی‌تر بشه. آیا حتماً باید الان بری؟',
+            style: const TextStyle(
+              fontSize: 14,
+              height: 1.6,
+              color: Color(0xFF334155),
+            ),
+          ),
+          actionsPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text(
+                'صبر می‌کنم 💪',
+                style: TextStyle(
+                  color: Color(0xFF059669),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('نه، دستشویی رفتم'),
+            ),
+          ],
+        ),
+      );
+
+      if (wentAnyway == true) {
+        await _quickLog(ref, eventType: 'spontaneous');
+      }
+      return;
+    }
+
+    // 3. Normal visit well before timer
+    await _quickLog(ref, eventType: 'spontaneous');
+  }
+
   @override
   Widget build(BuildContext context) {
     final logsAsync = ref.watch(voidingLogsProvider);
     final schedulesAsync = ref.watch(voidingSchedulesProvider);
     final progression = ref.watch(progressionEvaluationProvider);
+
+    final currentSchedule = schedulesAsync.value?.firstOrNull;
+    final logs = logsAsync.value ?? [];
+    final bool isActive = currentSchedule?.isActive ?? false;
+    final targetTime = _calculateTargetTime(currentSchedule, logs);
+
+    final now = DateTime.now();
+    final diff = targetTime?.difference(now) ?? Duration.zero;
+    final bool isCloseToAlarm =
+        isActive &&
+        targetTime != null &&
+        !diff.isNegative &&
+        diff.inMinutes < 10 &&
+        diff.inSeconds > 0;
+    final int remainingMinutes = diff.inMinutes > 0 ? diff.inMinutes : 1;
 
     final bool canProgress =
         progression != null &&
@@ -628,14 +735,13 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
           schedulesAsync.when(
             data: (schedules) {
               final s = schedules.isNotEmpty ? schedules.first : null;
-              final bool isActive = s?.isActive ?? false;
-              final logs = logsAsync.value ?? [];
-              final targetTime = _calculateTargetTime(s, logs);
+              final bool scheduleActive = s?.isActive ?? false;
+              final scheduleTargetTime = _calculateTargetTime(s, logs);
 
               return _HeroTimerWidget(
                 schedule: s,
-                isActive: isActive,
-                targetTime: targetTime,
+                isActive: scheduleActive,
+                targetTime: scheduleTargetTime,
                 onEditSchedule: s != null
                     ? () => _showEditScheduleDialog(context, s)
                     : null,
@@ -736,124 +842,138 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
             ),
           ],
 
+          // Motivational banner if approaching the scheduled time
+          if (isCloseToAlarm) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEB),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.stars_rounded,
+                    color: Color(0xFFD97706),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'فقط $remainingMinutes دقیقه مونده! اگر می‌تونی کمی بیشتر نگه دار 🌟',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF92400E),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 18),
 
-          const Text(
-            'ثبت سریع رویداد',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF334155),
-            ),
-          ),
-          const SizedBox(height: 10),
-
+          // Unified Primary Submit Button
           InkWell(
             borderRadius: BorderRadius.circular(22),
-            onTap: () => _quickLog(ref, eventType: 'prompted_success'),
+            onTap: () => _handleSubmitPee(
+              ref,
+              targetTime: targetTime,
+              isActive: isActive,
+            ),
             child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
+              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF059669), Color(0xFF10B981)],
+                  colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
                   begin: Alignment.topRight,
                   end: Alignment.bottomLeft,
                 ),
                 borderRadius: BorderRadius.circular(22),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
+                    color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: Colors.white.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
-                      Icons.check_rounded,
-                      size: 32,
+                      Icons.water_drop_rounded,
+                      size: 28,
                       color: Colors.white,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'توالت موفق (با یادآوری)',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
+                  const SizedBox(width: 14),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ثبت رفتن به دستشویی',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          'ثبت آنی و شروع شمارش معکوس نوبت بعدی',
-                          style: TextStyle(fontSize: 12, color: Colors.white70),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: Colors.white70,
-                    size: 18,
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'تخلیه ادرار انجام شد و تایمر نو می‌شود',
+                        style: TextStyle(fontSize: 12, color: Colors.white70),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
           ),
 
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Expanded(
-                child: _QuickActionTile(
-                  icon: Icons.bolt_rounded,
-                  iconColor: const Color(0xFFD97706),
-                  bgColor: const Color(0xFFFFFBEB),
-                  borderColor: const Color(0xFFFDE68A),
-                  title: 'خودبه‌خودی',
-                  subtitle: 'بدون آلارم',
-                  onTap: () => _quickLog(ref, eventType: 'spontaneous'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _QuickActionTile(
-                  icon: Icons.warning_amber_rounded,
-                  iconColor: const Color(0xFFDC2626),
-                  bgColor: const Color(0xFFFEF2F2),
-                  borderColor: const Color(0xFFFECACA),
-                  title: 'خیس‌شدن',
-                  subtitle: 'تصادف لباس',
-                  onTap: () =>
-                      _quickLog(ref, eventType: 'accident', urgency: 3),
-                ),
-              ),
-            ],
-          ),
-
           const SizedBox(height: 10),
 
-          Center(
-            child: TextButton.icon(
-              icon: const Icon(Icons.edit_note_rounded, size: 20),
-              label: const Text(
-                'ثبت با جزئیات کامل (تنظیم زمان، حجم، فوریت)...',
+          // Secondary helpers (Accident & Detailed logging)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFFDC2626),
+                ),
+                icon: const Icon(Icons.warning_amber_rounded, size: 16),
+                label: const Text(
+                  'ثبت خیس شدن / تصادف',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                onPressed: () =>
+                    _quickLog(ref, eventType: 'accident', urgency: 3),
               ),
-              onPressed: () => _showDetailedLogSheet(context),
-            ),
+              const SizedBox(width: 8),
+              const Text('•', style: TextStyle(color: Color(0xFFCBD5E1))),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF64748B),
+                ),
+                icon: const Icon(Icons.edit_note_rounded, size: 18),
+                label: const Text(
+                  'ثبت با جزئیات',
+                  style: TextStyle(fontSize: 12),
+                ),
+                onPressed: () => _showDetailedLogSheet(context),
+              ),
+            ],
           ),
 
           const SizedBox(height: 14),
