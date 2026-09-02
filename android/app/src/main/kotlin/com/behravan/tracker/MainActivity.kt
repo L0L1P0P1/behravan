@@ -1,4 +1,4 @@
-package com.behravan.tracker.behravan
+package com.behravan.tracker
 //
 // import io.flutter.embedding.android.FlutterActivity
 //
