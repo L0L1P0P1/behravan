@@ -762,7 +762,7 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                 borderRadius: BorderRadius.circular(22),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF10B981).withOpacity(0.3),
+                    color: const Color(0xFF10B981).withValues(alpha: 0.3),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -773,7 +773,7 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -962,7 +962,9 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                                     Container(
                                       padding: const EdgeInsets.all(8),
                                       decoration: BoxDecoration(
-                                        color: statusColor.withOpacity(0.12),
+                                        color: statusColor.withValues(
+                                          alpha: 0.12,
+                                        ),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Icon(
@@ -1092,7 +1094,7 @@ class _HeroTimerWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.25),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.25),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -1141,7 +1143,7 @@ class _HeroTimerWidget extends StatelessWidget {
                     ),
                   Switch(
                     value: isActive,
-                    activeColor: const Color(0xFF38BDF8),
+                    activeThumbColor: const Color(0xFF38BDF8),
                     activeTrackColor: const Color(0xFF0284C7),
                     onChanged: onToggleActive,
                   ),
@@ -1154,7 +1156,7 @@ class _HeroTimerWidget extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withOpacity(0.2),
+                color: const Color(0xFFEF4444).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0xFFEF4444)),
               ),
@@ -1241,9 +1243,11 @@ class _HeroTimerWidget extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.08),
+                      color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withOpacity(0.12)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1287,9 +1291,9 @@ class _TimeDigitCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: Colors.white.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withOpacity(0.12)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
           child: Text(
             value,

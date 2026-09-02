@@ -18,7 +18,7 @@ class EnuresisScreen extends ConsumerStatefulWidget {
 
 class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
   final _uuid = const Uuid();
-  DateTime _focusedDay = DateTime.now();
+  final DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
   @override
@@ -140,7 +140,7 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     value: wokeToPee,
-                    activeColor: const Color(0xFF0284C7),
+                    activeThumbColor: const Color(0xFF0284C7),
                     onChanged: (v) => setSheetState(() => wokeToPee = v),
                   ),
                   SwitchListTile(
@@ -150,7 +150,7 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     value: fluidRestriction,
-                    activeColor: const Color(0xFF0284C7),
+                    activeThumbColor: const Color(0xFF0284C7),
                     onChanged: (v) => setSheetState(() => fluidRestriction = v),
                   ),
                   const SizedBox(height: 12),

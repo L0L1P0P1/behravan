@@ -225,10 +225,10 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
           Container(
             padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
-              color: currentInfo.color.withOpacity(0.08),
+              color: currentInfo.color.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
-                color: currentInfo.color.withOpacity(0.3),
+                color: currentInfo.color.withValues(alpha: 0.3),
                 width: 1.5,
               ),
             ),
@@ -243,7 +243,7 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: currentInfo.color.withOpacity(0.2),
+                        color: currentInfo.color.withValues(alpha: 0.2),
                         blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
@@ -335,7 +335,7 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: data.color.withOpacity(0.35),
+                                color: data.color.withValues(alpha: 0.35),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -405,7 +405,7 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   value: _bloodPresent,
-                  activeColor: const Color(0xFFEF4444),
+                  activeThumbColor: const Color(0xFFEF4444),
                   onChanged: (val) => setState(() => _bloodPresent = val),
                 ),
                 SwitchListTile(
@@ -416,7 +416,7 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   value: _soilingAccident,
-                  activeColor: const Color(0xFFF59E0B),
+                  activeThumbColor: const Color(0xFFF59E0B),
                   onChanged: (val) => setState(() => _soilingAccident = val),
                 ),
               ],
@@ -541,7 +541,9 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
                                       height: 40,
                                       alignment: Alignment.center,
                                       decoration: BoxDecoration(
-                                        color: info.color.withOpacity(0.12),
+                                        color: info.color.withValues(
+                                          alpha: 0.12,
+                                        ),
                                         shape: BoxShape.circle,
                                       ),
                                       child: Text(

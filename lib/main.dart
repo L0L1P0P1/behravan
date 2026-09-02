@@ -119,7 +119,7 @@ class BehravanApp extends StatelessWidget {
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: Colors.white,
           elevation: 8,
-          shadowColor: Colors.black.withOpacity(0.08),
+          shadowColor: Colors.black.withValues(alpha: 0.08),
           height: 68,
           indicatorColor: const Color(0xFFE0F2FE),
           labelTextStyle: WidgetStateProperty.resolveWith((states) {
@@ -168,7 +168,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           decoration: BoxDecoration(
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 16,
                 offset: const Offset(0, -4),
               ),
