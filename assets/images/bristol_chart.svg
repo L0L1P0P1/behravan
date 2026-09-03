@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="100%" height="100%" direction="rtl">
+  <defs>
+    <style>
+      .title { font-family: 'Vazirmatn', 'Shabnam', 'Tahoma', sans-serif; font-size: 34px; font-weight: 900; fill: #1e293b; text-anchor: middle; }
+      .desc-text { font-family: 'Vazirmatn', 'Shabnam', 'Tahoma', sans-serif; font-size: 13.5px; font-weight: 700; fill: #0f172a; text-anchor: middle; }
+      .badge-text { font-family: 'Vazirmatn', 'Shabnam', 'Tahoma', sans-serif; font-size: 16px; font-weight: 900; fill: #ffffff; text-anchor: middle; dominant-baseline: central; }
+      .category-text { font-family: 'Vazirmatn', 'Shabnam', 'Tahoma', sans-serif; font-size: 17px; font-weight: 800; fill: #ffffff; text-anchor: middle; dominant-baseline: central; }
+    </style>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="1200" height="675" fill="#FFFFFF"/>
+
+  <!-- Top and Bottom Decorative Golden/Ochre Borders -->
+  <rect x="0" y="0" width="1200" height="12" fill="#96691c"/>
+  <rect x="0" y="663" width="1200" height="12" fill="#96691c"/>
+
+  <!-- Header Title -->
+  <text x="600" y="80" class="title">چارت مدفوع بریستول</text>
+
+  <!-- ================= TYPE 1 (x: 150) ================= -->
+  <!-- Hard Lumps / Marbles -->
+  <g fill="#70360d" stroke="#522507" stroke-width="1.5">
+    <ellipse cx="125" cy="175" rx="22" ry="20"/>
+    <ellipse cx="160" cy="205" rx="10" ry="9"/>
+    <ellipse cx="150" cy="235" rx="14" ry="13"/>
+    <ellipse cx="120" cy="265" rx="17" ry="16"/>
+    <ellipse cx="165" cy="380" rx="16" ry="15"/>
+    <ellipse cx="130" cy="415" rx="15" ry="14"/>
+  </g>
+
+  <!-- ================= TYPE 2 (x: 300) ================= -->
+  <!-- Lumpy Sausage -->
+  <g fill="#70360d" stroke="#522507" stroke-width="1.5">
+    <path d="M 285 160 C 270 160 270 195 285 205 C 300 215 320 200 320 185 C 320 165 305 160 285 160 Z"/>
+    <ellipse cx="310" cy="180" rx="13" ry="12"/>
+    <ellipse cx="300" cy="255" rx="19" ry="17"/>
+    <ellipse cx="302" cy="285" rx="22" ry="19"/>
+    <ellipse cx="298" cy="320" rx="24" ry="20"/>
+    <ellipse cx="302" cy="355" rx="23" ry="19"/>
+    <ellipse cx="298" cy="390" rx="24" ry="21"/>
+    <ellipse cx="300" cy="425" rx="21" ry="18"/>
+  </g>
+
+  <!-- ================= TYPE 3 (x: 450) ================= -->
+  <!-- Sausage with Surface Cracks -->
+  <g fill="#70360d" stroke="#522507" stroke-width="1.5">
+    <path d="M 438 150 C 420 170 425 210 420 250 C 418 300 420 370 426 415 C 430 435 465 435 470 415 C 476 370 478 300 476 250 C 474 210 478 170 460 150 C 452 140 444 140 438 150 Z"/>
+    <!-- Surface Cracks -->
+    <path d="M 432 185 Q 448 195 462 185" stroke="#3b1903" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M 428 225 Q 448 240 468 225" stroke="#3b1903" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M 430 270 Q 450 285 466 270" stroke="#3b1903" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M 428 315 Q 450 330 468 315" stroke="#3b1903" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M 430 360 Q 450 372 466 360" stroke="#3b1903" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <path d="M 432 400 Q 448 410 464 400" stroke="#3b1903" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- ================= TYPE 4 (x: 600) ================= -->
+  <!-- Smooth, Soft Snake/Torpedo -->
+  <g fill="#70360d" stroke="#522507" stroke-width="1.5">
+    <path d="M 598 150 C 585 190 575 260 575 330 C 575 410 585 445 600 445 C 615 445 625 410 625 330 C 625 260 615 190 602 150 C 600 142 600 142 598 150 Z"/>
+  </g>
+
+  <!-- ================= TYPE 5 (x: 750) ================= -->
+  <!-- Soft Blobs with Clear Edges -->
+  <g fill="#c9773b" stroke="#783e18" stroke-width="1.5">
+    <path d="M 748 155 C 735 180 740 210 750 215 C 762 215 765 180 752 155 Z"/>
+    <ellipse cx="742" cy="275" rx="14" ry="12"/>
+    <path d="M 750 340 C 730 350 720 375 735 395 C 742 405 758 405 765 390 C 772 375 765 365 750 340 Z"/>
+    <path d="M 730 410 C 710 415 700 435 715 455 C 740 470 780 465 780 445 C 780 425 755 415 730 410 Z"/>
+  </g>
+
+  <!-- ================= TYPE 6 (x: 885) ================= -->
+  <!-- Fluffy, Mushy Pieces -->
+  <g fill="#c9773b" stroke="#783e18" stroke-width="1.2">
+    <ellipse cx="820" cy="340" rx="9" ry="8"/>
+    <ellipse cx="838" cy="336" rx="8" ry="7"/>
+    <ellipse cx="830" cy="348" rx="10" ry="7"/>
+    <path d="M 855 335 C 850 325 870 320 880 330 C 895 325 910 335 905 345 C 915 355 895 365 885 355 C 870 365 850 355 855 335 Z"/>
+    <ellipse cx="850" cy="365" rx="11" ry="8"/>
+    <ellipse cx="875" cy="370" rx="14" ry="10"/>
+    <ellipse cx="905" cy="362" rx="9" ry="8"/>
+    <ellipse cx="840" cy="385" rx="10" ry="8"/>
+    <ellipse cx="865" cy="390" rx="12" ry="9"/>
+  </g>
+
+  <!-- ================= TYPE 7 (x: 1040) ================= -->
+  <!-- Entirely Liquid Stool -->
+  <g>
+    <rect x="990" y="335" width="105" height="140" fill="#a45828" stroke="#783e18" stroke-width="2"/>
+    <ellipse cx="1042.5" cy="335" rx="52.5" ry="8" fill="#bc6d39" stroke="#783e18" stroke-width="1.5"/>
+  </g>
+
+  <!-- ================= COLUMN SEPARATION LINES ================= -->
+  <g stroke="#cbd5e1" stroke-width="1.2">
+    <line x1="225" y1="520" x2="225" y2="600"/>
+    <line x1="375" y1="520" x2="375" y2="600"/>
+    <line x1="525" y1="520" x2="525" y2="600"/>
+    <line x1="675" y1="520" x2="675" y2="600"/>
+    <line x1="825" y1="520" x2="825" y2="600"/>
+    <line x1="965" y1="520" x2="965" y2="600"/>
+  </g>
+
+  <!-- ================= NUMBER BADGES (1 to 7) ================= -->
+  <circle cx="150" cy="500" r="18" fill="#000000"/>
+  <text x="150" y="500" class="badge-text">۱</text>
+
+  <circle cx="300" cy="500" r="18" fill="#000000"/>
+  <text x="300" y="500" class="badge-text">۲</text>
+
+  <circle cx="450" cy="500" r="18" fill="#000000"/>
+  <text x="450" y="500" class="badge-text">۳</text>
+
+  <circle cx="600" cy="500" r="18" fill="#000000"/>
+  <text x="600" y="500" class="badge-text">۴</text>
+
+  <circle cx="750" cy="500" r="18" fill="#000000"/>
+  <text x="750" y="500" class="badge-text">۵</text>
+
+  <circle cx="885" cy="500" r="18" fill="#000000"/>
+  <text x="885" y="500" class="badge-text">۶</text>
+
+  <circle cx="1040" cy="500" r="18" fill="#000000"/>
+  <text x="1040" y="500" class="badge-text">۷</text>
+
+  <!-- ================= PERSIAN DESCRIPTIONS ================= -->
+  <!-- Col 1 -->
+  <text x="150" y="535" class="desc-text">قطعات سخت و</text>
+  <text x="150" y="555" class="desc-text">جدا از هم،</text>
+  <text x="150" y="575" class="desc-text">گلوله مانند</text>
+
+  <!-- Col 2 -->
+  <text x="300" y="535" class="desc-text">به شکل</text>
+  <text x="300" y="555" class="desc-text">سوسیس</text>
+  <text x="300" y="575" class="desc-text">اما توده توده</text>
+
+  <!-- Col 3 -->
+  <text x="450" y="535" class="desc-text">شبیه سوسیس</text>
+  <text x="450" y="555" class="desc-text">اما با ترک‌های</text>
+  <text x="450" y="575" class="desc-text">سطحی</text>
+
+  <!-- Col 4 -->
+  <text x="600" y="540" class="desc-text">شبیه سوسیس</text>
+  <text x="600" y="565" class="desc-text">یا مار، صاف و نرم</text>
+
+  <!-- Col 5 -->
+  <text x="750" y="532" class="desc-text">قطعات نرم با</text>
+  <text x="750" y="552" class="desc-text">لبه‌های مشخص</text>
+  <text x="750" y="572" class="desc-text">(به راحتی دفع</text>
+  <text x="750" y="592" class="desc-text">می‌شود)</text>
+
+  <!-- Col 6 -->
+  <text x="885" y="532" class="desc-text">قطعات پفکی با</text>
+  <text x="885" y="552" class="desc-text">لبه‌های</text>
+  <text x="885" y="572" class="desc-text">نامشخص</text>
+  <text x="885" y="592" class="desc-text">و قوام خمیری</text>
+
+  <!-- Col 7 -->
+  <text x="1040" y="535" class="desc-text">آبکی و بدون</text>
+  <text x="1040" y="555" class="desc-text">قطعات جامد</text>
+  <text x="1040" y="575" class="desc-text">(کاملاً مایع)</text>
+
+  <!-- ================= BOTTOM CLINICAL BAR ================= -->
+  <!-- Left Segment: Constipation (Cols 1 & 2) -->
+  <rect x="75" y="612" width="300" height="28" fill="#94a3b8"/>
+  <text x="225" y="626" class="category-text">یبوست</text>
+
+  <!-- Center Segment: Normal / Ideal (Cols 3 & 4) -->
+  <rect x="375" y="612" width="300" height="28" fill="#1e293b"/>
+  <text x="525" y="626" class="category-text">طبیعی</text>
+
+  <!-- Right Segment: Diarrhea (Cols 5, 6 & 7) -->
+  <rect x="675" y="612" width="450" height="28" fill="#64748b"/>
+  <text x="900" y="626" class="category-text">اسهال</text>
+</svg>
