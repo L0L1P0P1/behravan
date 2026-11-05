@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,10 +8,36 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/providers.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/date_utils.dart';
+import '../../../core/widgets/app_ui.dart';
 import '../../../data/database/app_database.dart';
 import '../../reports/application/progression_service.dart';
 import '../../reports/domain/progression_models.dart';
 import '../../reports/presentation/widgets/celebration_dialog.dart';
+
+/// Whether the child is close enough to the next slot to be asked to hold on.
+bool _isInHoldingWindow({
+  required DateTime now,
+  required DateTime? targetTime,
+  required int intervalMinutes,
+}) {
+  if (targetTime == null) return false;
+  final remaining = targetTime.difference(now);
+
+  if (remaining.isNegative || remaining.inSeconds <= 0) return false;
+
+  final intervalSecs = intervalMinutes * 60;
+  if (intervalSecs <= 0) return false;
+
+  final remainingSecs = remaining.inSeconds;
+  if (intervalSecs <= 120) {
+    return remainingSecs <= 25 || (remainingSecs / intervalSecs) <= 0.35;
+  }
+
+  final ratio = remainingSecs / intervalSecs;
+  return ratio <= 0.15 || remainingSecs <= 600;
+}
 
 // -----------------------------------------------------------------------------
 // Main Screen
@@ -25,46 +52,21 @@ class VoidingScreen extends ConsumerStatefulWidget {
 class _VoidingScreenState extends ConsumerState<VoidingScreen> {
   final _uuid = const Uuid();
   DateTime? _lastManualResetTime;
-  OverlayEntry? _toastEntry;
+  Timer? _minuteTicker;
+
+  @override
+  void initState() {
+    super.initState();
+    // Picks up the moment the active window opens or closes.
+    _minuteTicker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   @override
   void dispose() {
-    _toastEntry?.remove();
-    _toastEntry = null;
+    _minuteTicker?.cancel();
     super.dispose();
-  }
-
-  void _showAnimatedToast({
-    required String message,
-    required bool isAccident,
-    required bool isPrompted,
-    VoidCallback? onUndo,
-    Duration duration = const Duration(milliseconds: 2800),
-  }) {
-    _toastEntry?.remove();
-    _toastEntry = null;
-
-    late final OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (context) => _ToastOverlay(
-        message: message,
-        isAccident: isAccident,
-        isPrompted: isPrompted,
-        duration: duration,
-        onUndo: onUndo,
-        onDismissed: () {
-          if (entry.mounted) {
-            entry.remove();
-          }
-          if (_toastEntry == entry) {
-            _toastEntry = null;
-          }
-        },
-      ),
-    );
-
-    _toastEntry = entry;
-    Overlay.of(context).insert(entry);
   }
 
   DateTime? _calculateTargetTime(
@@ -75,6 +77,14 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
 
     final now = DateTime.now();
     final interval = Duration(minutes: schedule.intervalMinutes);
+    final windowStart = _todayAt(now, schedule.startTime);
+    final windowEnd = _todayAt(now, schedule.endTime);
+
+    // Mirrors NotificationService: short test intervals ignore the window.
+    final isOutsideWindow =
+        schedule.intervalMinutes > 30 &&
+        (now.isBefore(windowStart) || !now.isBefore(windowEnd));
+    if (isOutsideWindow) return null;
 
     VoidingLogEntity? latestLog;
     if (logs.isNotEmpty) {
@@ -91,7 +101,8 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
       }
     }
 
-    if (effectiveLastTime != null) {
+    // Yesterday's last log must not read as "12 hours overdue" this morning.
+    if (effectiveLastTime != null && effectiveLastTime.isAfter(windowStart)) {
       return effectiveLastTime.add(interval);
     }
 
@@ -101,6 +112,11 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     }
 
     return now.add(interval);
+  }
+
+  DateTime _todayAt(DateTime now, String hhmm) {
+    final parts = hhmm.split(':').map(int.parse).toList();
+    return DateTime(now.year, now.month, now.day, parts[0], parts[1]);
   }
 
   String _resolveEventType({
@@ -126,28 +142,6 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     return isWithinPromptWindow ? 'prompted_success' : 'spontaneous';
   }
 
-  bool _isInHoldingWindow({
-    required DateTime now,
-    required DateTime? targetTime,
-    required int intervalMinutes,
-  }) {
-    if (targetTime == null) return false;
-    final remaining = targetTime.difference(now);
-
-    if (remaining.isNegative || remaining.inSeconds <= 0) return false;
-
-    final intervalSecs = intervalMinutes * 60;
-    if (intervalSecs <= 0) return false;
-
-    final remainingSecs = remaining.inSeconds;
-    if (intervalSecs <= 120) {
-      return remainingSecs <= 25 || (remainingSecs / intervalSecs) <= 0.35;
-    }
-
-    final ratio = remainingSecs / intervalSecs;
-    return ratio <= 0.15 || remainingSecs <= 600;
-  }
-
   Future<void> _undoLog(String logId) async {
     setState(() {
       _lastManualResetTime = null;
@@ -160,10 +154,10 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     if (!mounted) return;
     HapticFeedback.lightImpact();
 
-    _showAnimatedToast(
+    AppToast.show(
+      context,
       message: 'ثبت قبلی لغو شد.',
-      isAccident: false,
-      isPrompted: false,
+      tone: ToastTone.neutral,
       duration: const Duration(milliseconds: 1600),
     );
   }
@@ -201,15 +195,73 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     final isAccident = eventType == 'accident';
     final isPrompted = eventType == 'prompted_success';
 
-    _showAnimatedToast(
+    AppToast.show(
+      context,
       message: isAccident
           ? 'ثبت شد؛ قدم به قدم بهتر می‌شیم!'
           : (isPrompted
                 ? 'آفرین! ثبت به‌موقع با یادآور ساعت ⏰'
                 : 'رویداد ثبت و تایمر بازنشانی شد.'),
-      isAccident: isAccident,
-      isPrompted: isPrompted,
+      tone: isAccident ? ToastTone.gentle : ToastTone.success,
       onUndo: () => _undoLog(newId),
+    );
+  }
+
+  bool _isLatestLog(VoidingLogEntity log) =>
+      ref.read(voidingLogsProvider).value?.firstOrNull?.id == log.id;
+
+  /// The timer follows the latest log, so only changes to it re-arm the alarm.
+  Future<void> _refreshTimerAfterChange({required bool affectsTimer}) async {
+    if (!affectsTimer) return;
+    setState(() => _lastManualResetTime = null);
+    await NotificationService.instance.resetTimerForActiveSchedules(
+      ref.read(databaseProvider),
+    );
+  }
+
+  Future<void> _updateVoidingLog(
+    VoidingLogEntity log, {
+    required String eventType,
+    required DateTime timestamp,
+    required int urgency,
+    required String volume,
+    String? notes,
+  }) async {
+    final affectsTimer = _isLatestLog(log) && timestamp != log.timestamp;
+    final db = ref.read(databaseProvider);
+
+    await (db.update(db.voidingLogs)..where((t) => t.id.equals(log.id))).write(
+      VoidingLogsCompanion(
+        timestamp: Value(timestamp),
+        eventType: Value(eventType),
+        urgencyLevel: Value(urgency),
+        volumeEstimation: Value(volume),
+        notes: Value(notes),
+      ),
+    );
+    await _refreshTimerAfterChange(affectsTimer: affectsTimer);
+
+    if (!mounted) return;
+    AppToast.show(context, message: 'تغییرات ذخیره شد.');
+  }
+
+  Future<void> _deleteVoidingLog(VoidingLogEntity log) async {
+    final affectsTimer = _isLatestLog(log);
+    final db = ref.read(databaseProvider);
+
+    await (db.delete(db.voidingLogs)..where((t) => t.id.equals(log.id))).go();
+    await _refreshTimerAfterChange(affectsTimer: affectsTimer);
+
+    if (!mounted) return;
+    HapticFeedback.lightImpact();
+    AppToast.show(
+      context,
+      message: 'ثبت حذف شد.',
+      tone: ToastTone.neutral,
+      onUndo: () async {
+        await db.into(db.voidingLogs).insert(log);
+        await _refreshTimerAfterChange(affectsTimer: affectsTimer);
+      },
     );
   }
 
@@ -239,9 +291,6 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
           title: const Row(
             children: [
               Icon(
@@ -250,9 +299,11 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
                 size: 26,
               ),
               SizedBox(width: 8),
-              Text(
-                'کمی بیشتر صبر کن!',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+              Expanded(
+                child: Text(
+                  'کمی بیشتر صبر کن!',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ),
@@ -308,18 +359,34 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     await _saveVoidingLog(eventType: eventType);
   }
 
-  void _showDetailedLogSheet({required String defaultType}) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+  void _showDetailedLogSheet({
+    String defaultType = 'spontaneous',
+    VoidingLogEntity? existing,
+  }) {
+    showAppSheet(
+      context,
       builder: (ctx) => _ClinicalLogDetailSheet(
-        initialType: defaultType,
+        initialType: existing?.eventType ?? defaultType,
+        existing: existing,
+        onDelete: existing == null
+            ? null
+            : () {
+                Navigator.pop(ctx);
+                _deleteVoidingLog(existing);
+              },
         onSave: (type, time, urgency, volume, notes) async {
           Navigator.pop(ctx);
+          if (existing != null) {
+            await _updateVoidingLog(
+              existing,
+              eventType: type,
+              timestamp: time,
+              urgency: urgency,
+              volume: volume,
+              notes: notes,
+            );
+            return;
+          }
           await _saveVoidingLog(
             eventType: type,
             timestamp: time,
@@ -372,13 +439,8 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
     BuildContext context,
     VoidingScheduleEntity schedule,
   ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+    showAppSheet(
+      context,
       builder: (_) => _ScheduleEditorSheet(schedule: schedule),
     );
   }
@@ -399,22 +461,9 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
         progression.suggestedInterval > progression.currentInterval;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        centerTitle: false,
-        title: const Text(
-          'برنامه تمرین مثانه',
-          style: TextStyle(
-            fontSize: 19,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
-          ),
-        ),
-      ),
+      appBar: AppBar(title: const Text('برنامه تمرین مثانه')),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
           _HeroRadialProgressCard(
             schedule: currentSchedule,
@@ -464,12 +513,14 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
             ),
             onQuickAccidentTap: () =>
                 _saveVoidingLog(eventType: 'accident', urgency: 3),
-            onOpenDetailedEntry: () =>
-                _showDetailedLogSheet(defaultType: 'spontaneous'),
+            onOpenDetailedEntry: () => _showDetailedLogSheet(),
           ),
           const SizedBox(height: 24),
           logsAsync.when(
-            data: (items) => _VoidingDiaryCard(logs: items),
+            data: (items) => _VoidingDiaryCard(
+              logs: items,
+              onLogTap: (log) => _showDetailedLogSheet(existing: log),
+            ),
             loading: () => const Padding(
               padding: EdgeInsets.all(24),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
@@ -478,205 +529,6 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
           ),
           const SizedBox(height: 24),
         ],
-      ),
-    );
-  }
-}
-
-// -----------------------------------------------------------------------------
-// Animated Toast Overlay with Guaranteed Self-Dismissal & Spring Transitions
-// -----------------------------------------------------------------------------
-class _ToastOverlay extends StatefulWidget {
-  final String message;
-  final bool isAccident;
-  final bool isPrompted;
-  final Duration duration;
-  final VoidCallback? onUndo;
-  final VoidCallback onDismissed;
-
-  const _ToastOverlay({
-    required this.message,
-    required this.isAccident,
-    required this.isPrompted,
-    required this.duration,
-    required this.onDismissed,
-    this.onUndo,
-  });
-
-  @override
-  State<_ToastOverlay> createState() => _ToastOverlayState();
-}
-
-class _ToastOverlayState extends State<_ToastOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animCtrl;
-  late final Animation<double> _fadeAnim;
-  late final Animation<Offset> _slideAnim;
-  late final Animation<double> _scaleAnim;
-  Timer? _dismissTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _animCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 320),
-    );
-
-    _fadeAnim = CurvedAnimation(
-      parent: _animCtrl,
-      curve: Curves.easeOut,
-      reverseCurve: Curves.easeIn,
-    );
-
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.45), end: Offset.zero)
-        .animate(
-          CurvedAnimation(
-            parent: _animCtrl,
-            curve: Curves.easeOutBack,
-            reverseCurve: Curves.easeInCubic,
-          ),
-        );
-
-    _scaleAnim = Tween<double>(begin: 0.92, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animCtrl,
-        curve: Curves.easeOutBack,
-        reverseCurve: Curves.easeIn,
-      ),
-    );
-
-    _animCtrl.forward();
-
-    _dismissTimer = Timer(widget.duration, _triggerExit);
-  }
-
-  void _triggerExit() {
-    _dismissTimer?.cancel();
-    if (!mounted) return;
-    _animCtrl.reverse().then((_) {
-      if (mounted) widget.onDismissed();
-    });
-  }
-
-  @override
-  void dispose() {
-    _dismissTimer?.cancel();
-    _animCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-
-    return Positioned(
-      bottom: bottomPadding + 16,
-      left: 16,
-      right: 16,
-      child: FadeTransition(
-        opacity: _fadeAnim,
-        child: SlideTransition(
-          position: _slideAnim,
-          child: ScaleTransition(
-            scale: _scaleAnim,
-            child: Dismissible(
-              key: UniqueKey(),
-              direction: DismissDirection.horizontal,
-              onDismissed: (_) {
-                _dismissTimer?.cancel();
-                widget.onDismissed();
-              },
-              child: Material(
-                color: Colors.transparent,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0F172A).withValues(alpha: 0.08),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color:
-                              (widget.isAccident
-                                      ? const Color(0xFFEF4444)
-                                      : const Color(0xFF10B981))
-                                  .withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          widget.isAccident
-                              ? Icons.favorite_rounded
-                              : Icons.check_circle_rounded,
-                          color: widget.isAccident
-                              ? const Color(0xFFDC2626)
-                              : const Color(0xFF059669),
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          widget.message,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                      ),
-                      if (widget.onUndo != null) ...[
-                        const SizedBox(width: 8),
-                        InkWell(
-                          onTap: () {
-                            _triggerExit();
-                            widget.onUndo!();
-                          },
-                          borderRadius: BorderRadius.circular(10),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF0F9FF),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: const Color(0xFFBAE6FD),
-                              ),
-                            ),
-                            child: const Text(
-                              'لغو',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0284C7),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -746,11 +598,13 @@ class _HeroRadialProgressCardState extends State<_HeroRadialProgressCard> {
     final secondsLeft = (absSeconds % 60).clamp(0, 59);
 
     final isHoldingPrompt =
-        !isAlarmReady &&
-        (schedule != null &&
-            (schedule.intervalMinutes <= 2
-                ? diff.inSeconds <= 25
-                : diff.inSeconds <= 600));
+        schedule != null &&
+        _isInHoldingWindow(
+          now: now,
+          targetTime: targetTime,
+          intervalMinutes: schedule.intervalMinutes,
+        );
+    final isResting = isActive && targetTime == null;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
@@ -785,7 +639,7 @@ class _HeroRadialProgressCardState extends State<_HeroRadialProgressCard> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    isActive ? 'سیستم یادآور فعال' : 'یادآور غیرفعال',
+                    isActive ? 'یادآور فعال' : 'یادآور غیرفعال',
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
@@ -798,8 +652,6 @@ class _HeroRadialProgressCardState extends State<_HeroRadialProgressCard> {
                 scale: 0.85,
                 child: Switch(
                   value: isActive,
-                  activeThumbColor: const Color(0xFF0284C7),
-                  activeTrackColor: const Color(0xFFBAE6FD),
                   onChanged: widget.onToggleActive,
                 ),
               ),
@@ -815,16 +667,16 @@ class _HeroRadialProgressCardState extends State<_HeroRadialProgressCard> {
                 fit: StackFit.expand,
                 children: [
                   CircularProgressIndicator(
-                    value: isActive ? progress : 0,
+                    value: isActive && !isResting ? progress : 0,
                     strokeWidth: 12,
                     strokeCap: StrokeCap.round,
                     backgroundColor: const Color(0xFFF1F5F9),
                     valueColor: AlwaysStoppedAnimation<Color>(
                       isAlarmReady
-                          ? const Color(0xFFEF4444)
+                          ? AppColors.success
                           : (isHoldingPrompt
                                 ? const Color(0xFFF59E0B)
-                                : const Color(0xFF0284C7)),
+                                : AppColors.primary),
                     ),
                   ),
                   Column(
@@ -845,19 +697,42 @@ class _HeroRadialProgressCardState extends State<_HeroRadialProgressCard> {
                             color: Color(0xFF64748B),
                           ),
                         ),
+                      ] else if (isResting) ...[
+                        const Icon(
+                          Icons.bedtime_rounded,
+                          size: 38,
+                          color: Color(0xFF6366F1),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'زمان استراحت',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                        Text(
+                          'شروع از ساعت ${schedule!.startTime}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.muted,
+                          ),
+                        ),
                       ] else if (isAlarmReady) ...[
                         const Icon(
                           Icons.notifications_active_rounded,
                           size: 38,
-                          color: Color(0xFFEF4444),
+                          color: AppColors.success,
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'زمان تخلیه!',
+                          'وقت دستشویی!',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFFEF4444),
+                            color: AppColors.success,
                           ),
                         ),
                         Text(
@@ -865,7 +740,7 @@ class _HeroRadialProgressCardState extends State<_HeroRadialProgressCard> {
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFFEF4444),
+                            color: AppColors.success,
                           ),
                         ),
                       ] else ...[
@@ -922,12 +797,16 @@ class _HeroRadialProgressCardState extends State<_HeroRadialProgressCard> {
                         color: Color(0xFF0284C7),
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'هر ${schedule.intervalMinutes} دقیقه • ساعت ${schedule.startTime} تا ${schedule.endTime}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF334155),
+                      Flexible(
+                        child: Text(
+                          'هر ${schedule.intervalMinutes} دقیقه • ساعت ${schedule.startTime} تا ${schedule.endTime}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF334155),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -950,6 +829,8 @@ class _HeroRadialProgressCardState extends State<_HeroRadialProgressCard> {
 // -----------------------------------------------------------------------------
 // Component: Action Buttons
 // -----------------------------------------------------------------------------
+// Component: Action Buttons
+// -----------------------------------------------------------------------------
 class _QuickActionCenter extends StatelessWidget {
   final VoidCallback onQuickSuccessTap;
   final VoidCallback onQuickAccidentTap;
@@ -963,101 +844,94 @@ class _QuickActionCenter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(20);
+
     return Column(
       children: [
         Row(
           children: [
             Expanded(
               flex: 3,
-              child: InkWell(
+              child: TapSurface(
                 onTap: onQuickSuccessTap,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-                      begin: Alignment.topRight,
-                      end: Alignment.bottomLeft,
+                borderRadius: radius,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppColors.primary, AppColors.primaryDark],
+                    begin: Alignment.topRight,
+                    end: Alignment.bottomLeft,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0284C7).withValues(alpha: 0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.water_drop_rounded,
+                  ],
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.water_drop_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                    SizedBox(width: 8),
+                    Text(
+                      'دستشویی رفتم',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
                         color: Colors.white,
-                        size: 24,
                       ),
-                      SizedBox(width: 8),
-                      Text(
-                        'دستشویی رفتم',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               flex: 2,
-              child: InkWell(
+              child: TapSurface(
                 onTap: onQuickAccidentTap,
-                borderRadius: BorderRadius.circular(20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFEF2F2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFFECACA)),
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.shield_outlined,
-                        color: Color(0xFFDC2626),
-                        size: 20,
+                borderRadius: radius,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      color: AppColors.gentle,
+                      size: 20,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'خیس شدم',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.gentleDark,
                       ),
-                      SizedBox(width: 6),
-                      Text(
-                        'ثبت خیس شدن',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFDC2626),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 6),
         TextButton.icon(
           onPressed: onOpenDetailedEntry,
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF64748B),
-            visualDensity: VisualDensity.compact,
-          ),
+          style: TextButton.styleFrom(foregroundColor: AppColors.muted),
           icon: const Icon(Icons.playlist_add_check_rounded, size: 18),
           label: const Text(
-            'ثبت با جزئیات کامل (حجم، فوریت، یادداشت)',
+            'ثبت با جزئیات (زمان، حجم، فوریت، یادداشت)',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           ),
         ),
@@ -1123,7 +997,7 @@ class _ProgressionBanner extends StatelessWidget {
                   '$currentInterval ➔ $suggestedInterval دقیقه (${(successRate * 100).toInt()}% روزهای موفق)',
                   style: const TextStyle(
                     color: Color(0xFF166534),
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -1155,130 +1029,114 @@ class _ProgressionBanner extends StatelessWidget {
 // -----------------------------------------------------------------------------
 class _VoidingDiaryCard extends StatelessWidget {
   final List<VoidingLogEntity> logs;
+  final ValueChanged<VoidingLogEntity> onLogTap;
 
-  const _VoidingDiaryCard({required this.logs});
+  const _VoidingDiaryCard({required this.logs, required this.onLogTap});
 
   @override
   Widget build(BuildContext context) {
-    final sortedLogs = [...logs]
-      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    final recentLogs = sortedLogs.take(6).toList();
+    final now = DateTime.now();
+    final todayLogs =
+        logs
+            .where(
+              (l) =>
+                  l.timestamp.year == now.year &&
+                  l.timestamp.month == now.month &&
+                  l.timestamp.day == now.day,
+            )
+            .toList()
+          ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'دفترچه ثبت امروز',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              Text(
-                '${logs.length} رویداد',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-            ],
+          SectionHeader(
+            title: 'دفترچه ثبت امروز',
+            trailing: todayLogs.isEmpty ? null : '${todayLogs.length} رویداد',
           ),
-          const SizedBox(height: 14),
-          if (logs.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Center(
-                child: Text(
-                  'هیچ موردی برای امروز ثبت نشده است.',
-                  style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                ),
-              ),
+          if (todayLogs.isEmpty)
+            const EmptyState(
+              icon: Icons.water_drop_outlined,
+              message: 'امروز هنوز چیزی ثبت نشده است.',
             )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: recentLogs.length,
-              separatorBuilder: (_, __) => const Divider(
-                height: 14,
-                thickness: 0.8,
-                color: Color(0xFFF1F5F9),
-              ),
-              itemBuilder: (context, index) {
-                final log = recentLogs[index];
-                final isAccident = log.eventType == 'accident';
-                final isSuccess = log.eventType == 'prompted_success';
-
-                final color = isAccident
-                    ? const Color(0xFFEF4444)
-                    : (isSuccess
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF0284C7));
-
-                final title = isSuccess
-                    ? 'با یادآوری ساعت'
-                    : (isAccident ? 'تصادفی / نشت' : 'خودبه‌خودی');
-
-                return Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1E293B),
-                        ),
-                      ),
-                    ),
-                    if (log.notes != null && log.notes!.isNotEmpty) ...[
-                      Flexible(
-                        child: Text(
-                          log.notes!,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF64748B),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    Text(
-                      '${log.timestamp.hour.toString().padLeft(2, '0')}:${log.timestamp.minute.toString().padLeft(2, '0')}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                );
-              },
+          else ...[
+            const SizedBox(height: 2),
+            const Text(
+              'برای ویرایش یا حذف، روی هر مورد بزنید.',
+              style: TextStyle(fontSize: 12, color: AppColors.muted),
             ),
+            const SizedBox(height: 8),
+            for (final (index, log) in todayLogs.indexed) ...[
+              if (index > 0) const Divider(),
+              _DiaryRow(log: log, onTap: () => onLogTap(log)),
+            ],
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _DiaryRow extends StatelessWidget {
+  final VoidingLogEntity log;
+  final VoidCallback onTap;
+
+  const _DiaryRow({required this.log, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isAccident = log.eventType == 'accident';
+    final isSuccess = log.eventType == 'prompted_success';
+
+    final color = isAccident
+        ? AppColors.gentle
+        : (isSuccess ? AppColors.success : AppColors.primary);
+    final title = isSuccess
+        ? 'با یادآور'
+        : (isAccident ? 'خیس شدن' : 'خودبه‌خودی');
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1E293B),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                log.notes ?? '',
+                style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              PersianDateFormatter.clock(log.timestamp),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.muted,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1289,6 +1147,8 @@ class _VoidingDiaryCard extends StatelessWidget {
 // -----------------------------------------------------------------------------
 class _ClinicalLogDetailSheet extends StatefulWidget {
   final String initialType;
+  final VoidingLogEntity? existing;
+  final VoidCallback? onDelete;
   final Function(
     String type,
     DateTime time,
@@ -1301,6 +1161,8 @@ class _ClinicalLogDetailSheet extends StatefulWidget {
   const _ClinicalLogDetailSheet({
     required this.initialType,
     required this.onSave,
+    this.existing,
+    this.onDelete,
   });
 
   @override
@@ -1315,10 +1177,24 @@ class _ClinicalLogDetailSheetState extends State<_ClinicalLogDetailSheet> {
   TimeOfDay _time = TimeOfDay.now();
   final _notesCtrl = TextEditingController();
 
+  // Logs can hold types with no segment here (e.g. 'missed'), so the editor
+  // falls back to a default instead of tripping SegmentedButton's assert.
+  static const _editableTypes = {'spontaneous', 'prompted_success', 'accident'};
+
   @override
   void initState() {
     super.initState();
-    _type = widget.initialType;
+    _type = _editableTypes.contains(widget.initialType)
+        ? widget.initialType
+        : 'spontaneous';
+
+    final existing = widget.existing;
+    if (existing != null) {
+      _urgency = existing.urgencyLevel ?? 1;
+      _volume = existing.volumeEstimation ?? 'medium';
+      _time = TimeOfDay.fromDateTime(existing.timestamp);
+      _notesCtrl.text = existing.notes ?? '';
+    }
   }
 
   @override
@@ -1327,91 +1203,95 @@ class _ClinicalLogDetailSheetState extends State<_ClinicalLogDetailSheet> {
     super.dispose();
   }
 
+  Widget _label(String text) => Padding(
+    padding: const EdgeInsets.only(top: 16, bottom: 8),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        color: AppColors.inkSoft,
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        top: 20,
-        left: 20,
-        right: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFCBD5E1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+    final isEditing = widget.existing != null;
+
+    return AppSheetBody(
+      children: [
+        Text(
+          isEditing ? 'ویرایش ثبت' : 'ثبت با جزئیات',
+          style: const TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: AppColors.ink,
           ),
-          const SizedBox(height: 18),
-          const Text(
-            'ثبت گزارش کامل',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF0F172A),
-            ),
-          ),
-          const SizedBox(height: 14),
-          SegmentedButton<String>(
+        ),
+        _label('نوع رویداد'),
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<String>(
+            showSelectedIcon: false,
             segments: const [
               ButtonSegment(value: 'spontaneous', label: Text('خودبه‌خودی')),
-              ButtonSegment(value: 'prompted_success', label: Text('با آلارم')),
+              ButtonSegment(
+                value: 'prompted_success',
+                label: Text('با یادآور'),
+              ),
               ButtonSegment(value: 'accident', label: Text('خیس شدن')),
             ],
             selected: {_type},
             onSelectionChanged: (val) => setState(() => _type = val.first),
           ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'زمان دقیق وقوع:',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'زمان',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkSoft,
               ),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.access_time_rounded, size: 16),
-                label: Text(
-                  '${_time.hour.toString().padLeft(2, '0')}:${_time.minute.toString().padLeft(2, '0')}',
-                ),
-                onPressed: () async {
-                  final picked = await showTimePicker(
-                    context: context,
-                    initialTime: _time,
-                  );
-                  if (picked != null) setState(() => _time = picked);
-                },
+            ),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.access_time_rounded, size: 16),
+              label: Text(
+                '${_time.hour.toString().padLeft(2, '0')}:${_time.minute.toString().padLeft(2, '0')}',
               ),
+              onPressed: () async {
+                final picked = await showTimePicker(
+                  context: context,
+                  initialTime: _time,
+                );
+                if (picked != null) setState(() => _time = picked);
+              },
+            ),
+          ],
+        ),
+        _label('شدت فوریت'),
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<int>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 1, label: Text('عادی')),
+              ButtonSegment(value: 2, label: Text('متوسط')),
+              ButtonSegment(value: 3, label: Text('شدید')),
             ],
+            selected: {_urgency},
+            onSelectionChanged: (v) => setState(() => _urgency = v.first),
           ),
-          const SizedBox(height: 12),
-          const Text(
-            'شدت فوریت (Urgency):',
-            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-          ),
-          Slider(
-            value: _urgency.toDouble(),
-            min: 1,
-            max: 3,
-            divisions: 2,
-            activeColor: const Color(0xFF0284C7),
-            label: _urgency == 1 ? 'عادی' : (_urgency == 2 ? 'متوسط' : 'شدید'),
-            onChanged: (v) => setState(() => _urgency = v.toInt()),
-          ),
-          const Text(
-            'حجم تقریبی:',
-            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-          ),
-          const SizedBox(height: 6),
-          SegmentedButton<String>(
+        ),
+        _label('حجم تقریبی'),
+        SizedBox(
+          width: double.infinity,
+          child: SegmentedButton<String>(
+            showSelectedIcon: false,
             segments: const [
               ButtonSegment(value: 'small', label: Text('کم')),
               ButtonSegment(value: 'medium', label: Text('متوسط')),
@@ -1420,57 +1300,42 @@ class _ClinicalLogDetailSheetState extends State<_ClinicalLogDetailSheet> {
             selected: {_volume},
             onSelectionChanged: (v) => setState(() => _volume = v.first),
           ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _notesCtrl,
-            decoration: InputDecoration(
-              hintText: 'توضیحات تکمیلی (اختیاری)...',
-              filled: true,
-              fillColor: const Color(0xFFF8FAFC),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-              ),
-            ),
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _notesCtrl,
+          decoration: const InputDecoration(
+            hintText: 'توضیحات تکمیلی (اختیاری)...',
           ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF0284C7),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: () {
-                final now = DateTime.now();
-                final dt = DateTime(
-                  now.year,
-                  now.month,
-                  now.day,
-                  _time.hour,
-                  _time.minute,
-                );
-                widget.onSave(
-                  _type,
-                  dt,
-                  _urgency,
-                  _volume,
-                  _notesCtrl.text.trim().isEmpty
-                      ? null
-                      : _notesCtrl.text.trim(),
-                );
-              },
-              child: const Text(
-                'ثبت نهایی گزارش',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-            ),
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: () {
+              // Edits stay on the log's own day; new entries belong to today.
+              final base = widget.existing?.timestamp ?? DateTime.now();
+              final dt = DateTime(
+                base.year,
+                base.month,
+                base.day,
+                _time.hour,
+                _time.minute,
+              );
+              widget.onSave(
+                _type,
+                dt,
+                _urgency,
+                _volume,
+                _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+              );
+            },
+            child: Text(isEditing ? 'ذخیره تغییرات' : 'ثبت'),
           ),
-        ],
-      ),
+        ),
+        if (widget.onDelete != null)
+          SheetDeleteButton(onPressed: widget.onDelete!),
+      ],
     );
   }
 }
@@ -1517,168 +1382,156 @@ class _ScheduleEditorSheetState extends ConsumerState<_ScheduleEditorSheet> {
   String _formatTime(TimeOfDay t) =>
       '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
+  bool get _isWindowValid =>
+      _startTime.hour * 60 + _startTime.minute <
+      _endTime.hour * 60 + _endTime.minute;
+
+  bool get _isIntervalValid {
+    final parsed = int.tryParse(_customIntervalCtrl.text.trim());
+    return parsed != null && parsed > 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final clinicalPresets = [45, 60, 75, 90, 105, 120, 150, 180];
+    final canSave = _isWindowValid && _isIntervalValid;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        top: 20,
-        left: 20,
-        right: 20,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return AppSheetBody(
+      children: [
+        const Text(
+          'تنظیم زمان‌بندی یادآور',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w800,
+            color: AppColors.ink,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
           children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFCBD5E1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'تنظیم زمان‌بندی و ساعات یادآور',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.wb_sunny_outlined, size: 16),
-                    label: Text('شروع: ${_formatTime(_startTime)}'),
-                    onPressed: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: _startTime,
-                      );
-                      if (picked != null) setState(() => _startTime = picked);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.bedtime_outlined, size: 16),
-                    label: Text('پایان: ${_formatTime(_endTime)}'),
-                    onPressed: () async {
-                      final picked = await showTimePicker(
-                        context: context,
-                        initialTime: _endTime,
-                      );
-                      if (picked != null) setState(() => _endTime = picked);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            const Text(
-              'فواصل استاندارد پیشنهادی (دقیقه):',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF334155),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: clinicalPresets.map((mins) {
-                final isSelected = _interval == mins;
-                return ChoiceChip(
-                  label: Text('$mins د'),
-                  selected: isSelected,
-                  selectedColor: const Color(0xFFE0F2FE),
-                  onSelected: (_) {
-                    setState(() {
-                      _interval = mins;
-                      _customIntervalCtrl.text = mins.toString();
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _customIntervalCtrl,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'یا فاصله دلخواه دستی (دقیقه)',
-                suffixText: 'دقیقه',
-                filled: true,
-                fillColor: const Color(0xFFF8FAFC),
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
-              ),
-              onChanged: (val) {
-                final parsed = int.tryParse(val.trim());
-                if (parsed != null && parsed > 0) {
-                  setState(() => _interval = parsed);
-                }
-              },
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF0284C7),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.wb_sunny_outlined, size: 16),
+                label: Text('شروع: ${_formatTime(_startTime)}'),
                 onPressed: () async {
-                  final db = ref.read(databaseProvider);
-                  final formattedStart = _formatTime(_startTime);
-                  final formattedEnd = _formatTime(_endTime);
-
-                  await (db.update(
-                    db.voidingSchedules,
-                  )..where((t) => t.id.equals(widget.schedule.id))).write(
-                    VoidingSchedulesCompanion(
-                      startTime: Value(formattedStart),
-                      endTime: Value(formattedEnd),
-                      intervalMinutes: Value(_interval),
-                    ),
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: _startTime,
                   );
-
-                  if (widget.schedule.isActive) {
-                    await NotificationService.instance
-                        .scheduleDailyVoidingSlots(
-                          scheduleId: widget.schedule.id,
-                          title: widget.schedule.title,
-                          startTime: formattedStart,
-                          endTime: formattedEnd,
-                          intervalMinutes: _interval,
-                        );
-                  }
-
-                  if (context.mounted) Navigator.pop(context);
+                  if (picked != null) setState(() => _startTime = picked);
                 },
-                child: Text('ذخیره و اعمال ($_interval دقیقه)'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.bedtime_outlined, size: 16),
+                label: Text('پایان: ${_formatTime(_endTime)}'),
+                onPressed: () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: _endTime,
+                  );
+                  if (picked != null) setState(() => _endTime = picked);
+                },
               ),
             ),
           ],
         ),
-      ),
+        if (!_isWindowValid)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Text(
+              'ساعت پایان باید بعد از ساعت شروع باشد.',
+              style: TextStyle(fontSize: 12, color: AppColors.danger),
+            ),
+          ),
+        const SizedBox(height: 18),
+        const Text(
+          'فاصله پیشنهادی (دقیقه)',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: AppColors.inkSoft,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: clinicalPresets.map((mins) {
+            final isSelected = _interval == mins;
+            return ChoiceChip(
+              label: Text('$mins'),
+              selected: isSelected,
+              showCheckmark: false,
+              selectedColor: AppColors.primarySoft,
+              onSelected: (_) {
+                setState(() {
+                  _interval = mins;
+                  _customIntervalCtrl.text = mins.toString();
+                });
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: _customIntervalCtrl,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'فاصله دلخواه',
+            suffixText: 'دقیقه',
+            isDense: true,
+            errorText: _isIntervalValid
+                ? null
+                : 'یک عدد بزرگ‌تر از صفر وارد کنید',
+          ),
+          onChanged: (val) {
+            final parsed = int.tryParse(val.trim());
+            setState(() {
+              if (parsed != null && parsed > 0) _interval = parsed;
+            });
+          },
+        ),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton(
+            onPressed: !canSave
+                ? null
+                : () async {
+                    final db = ref.read(databaseProvider);
+                    final formattedStart = _formatTime(_startTime);
+                    final formattedEnd = _formatTime(_endTime);
+
+                    await (db.update(
+                      db.voidingSchedules,
+                    )..where((t) => t.id.equals(widget.schedule.id))).write(
+                      VoidingSchedulesCompanion(
+                        startTime: Value(formattedStart),
+                        endTime: Value(formattedEnd),
+                        intervalMinutes: Value(_interval),
+                      ),
+                    );
+
+                    if (widget.schedule.isActive) {
+                      await NotificationService.instance
+                          .scheduleDailyVoidingSlots(
+                            scheduleId: widget.schedule.id,
+                            title: widget.schedule.title,
+                            startTime: formattedStart,
+                            endTime: formattedEnd,
+                            intervalMinutes: _interval,
+                          );
+                    }
+
+                    if (context.mounted) Navigator.pop(context);
+                  },
+            child: Text('ذخیره ($_interval دقیقه)'),
+          ),
+        ),
+      ],
     );
   }
 }

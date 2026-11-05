@@ -1,4 +1,5 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 class CelebrationDialog extends StatefulWidget {
@@ -173,9 +174,9 @@ class _CelebrationDialogState extends State<CelebrationDialog>
                           horizontal: 16,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade50,
+                          color: const Color(0xFFECFDF5),
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.green.shade200),
+                          border: Border.all(color: const Color(0xFFA7F3D0)),
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -192,16 +193,16 @@ class _CelebrationDialogState extends State<CelebrationDialog>
                             const SizedBox(width: 12),
                             const Icon(
                               Icons.arrow_forward_rounded,
-                              color: Colors.green,
+                              color: Color(0xFF059669),
                               size: 20,
                             ),
                             const SizedBox(width: 12),
                             Text(
                               '${widget.newInterval} دقیقه',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.green.shade800,
+                                color: Color(0xFF065F46),
                               ),
                             ),
                           ],
@@ -213,7 +214,7 @@ class _CelebrationDialogState extends State<CelebrationDialog>
                         width: double.infinity,
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: Colors.green,
+                            backgroundColor: const Color(0xFF059669),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),

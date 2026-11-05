@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:developer';
 import 'dart:typed_data';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/services.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:drift/drift.dart' show Value;
 import 'package:uuid/uuid.dart';
+
 import '../../data/database/app_database.dart';
 
 @pragma('vm:entry-point')
@@ -182,7 +184,7 @@ class NotificationService {
         ),
         AndroidNotificationAction(
           'voiding_accident',
-          'تصادف / خیس',
+          'خیس شدم',
           showsUserInterface: false,
         ),
       ],
@@ -300,7 +302,7 @@ class NotificationService {
                 eventType: 'accident',
                 urgencyLevel: const Value(3),
                 volumeEstimation: const Value('medium'),
-                notes: const Value('ثبت تصادف از طریق اعلان'),
+                notes: const Value('ثبت خیس شدن از طریق اعلان'),
               ),
             );
         await resetTimerForActiveSchedules(db);

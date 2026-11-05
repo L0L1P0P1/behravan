@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shamsi_date/shamsi_date.dart';
 import 'package:intl/intl.dart';
+
+import '../../../../core/theme/app_theme.dart';
 import '../../../../data/database/app_database.dart';
 
 class JalaliCalendarGrid extends StatefulWidget {
@@ -53,6 +55,17 @@ class _JalaliCalendarGridState extends State<JalaliCalendarGrid> {
     });
   }
 
+  void _jumpToToday(Jalali today) {
+    setState(() => _displayMonth = today.withDay(1));
+    widget.onDaySelected(today);
+  }
+
+  EnuresisLogEntity? _logFor(Jalali day) {
+    // Bridge the UI back to the DB: Convert the cell to Gregorian 'yyyy-MM-dd'
+    final dbKey = DateFormat('yyyy-MM-dd').format(day.toDateTime());
+    return widget.logMap[dbKey];
+  }
+
   @override
   Widget build(BuildContext context) {
     // Math Engine: Determine grid shift
@@ -64,24 +77,41 @@ class _JalaliCalendarGridState extends State<JalaliCalendarGrid> {
     final formatter = _displayMonth.formatter;
     final weekDays = ['ش', 'ی', 'د', 'س', 'چ', 'پ', 'ج'];
 
+    final today = Jalali.now();
+    final isCurrentMonth =
+        _displayMonth.year == today.year && _displayMonth.month == today.month;
+
+    final monthLogs = [
+      for (var day = 1; day <= daysInMonth; day++)
+        ?_logFor(_displayMonth.withDay(day)),
+    ];
+    final dryCount = monthLogs.where((l) => l.isDry).length;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // 1. Header (Month/Year & Controls)
+        // 1. Header (Month/Year & Controls). Back and forward icons mirror in
+        // RTL, so "previous" sits at the start of the row pointing outward.
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             IconButton(
-              icon: const Icon(Icons.arrow_forward_ios, size: 16),
-              onPressed: _nextMonth,
+              tooltip: 'ماه قبل',
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
+              onPressed: _prevMonth,
             ),
             Text(
               '${formatter.mN} ${formatter.y}',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink,
+              ),
             ),
             IconButton(
-              icon: const Icon(Icons.arrow_back_ios, size: 16),
-              onPressed: _prevMonth,
+              tooltip: 'ماه بعد',
+              icon: const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+              onPressed: isCurrentMonth ? null : _nextMonth,
             ),
           ],
         ),
@@ -89,21 +119,28 @@ class _JalaliCalendarGridState extends State<JalaliCalendarGrid> {
 
         // 2. Weekday Header Row
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: weekDays
               .map(
-                (w) => Text(
-                  w,
-                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                (w) => Expanded(
+                  child: Text(
+                    w,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               )
               .toList(),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
 
         // 3. The Responsive Grid
         GridView.builder(
           shrinkWrap: true,
+          padding: EdgeInsets.zero,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 7,
@@ -117,58 +154,153 @@ class _JalaliCalendarGridState extends State<JalaliCalendarGrid> {
 
             final day = index - offset + 1;
             final currentDate = _displayMonth.withDay(day);
-            final isSelected = currentDate == widget.selectedDate;
 
-            // Bridge the UI back to the DB: Convert current grid cell to Gregorian 'yyyy-MM-dd'
-            final gDate = currentDate.toDateTime();
-            final dbKey = DateFormat('yyyy-MM-dd').format(gDate);
-            final log = widget.logMap[dbKey];
-
-            return GestureDetector(
+            return _DayCell(
+              day: day,
+              log: _logFor(currentDate),
+              isSelected: currentDate == widget.selectedDate,
+              isToday: currentDate == today,
+              isFuture: currentDate > today,
               onTap: () => widget.onDaySelected(currentDate),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? Colors.blue.withValues(alpha: 0.1)
-                      : Colors.transparent,
-                  border: isSelected
-                      ? Border.all(color: Colors.blue, width: 1.5)
-                      : null,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '$day',
-                      style: TextStyle(
-                        fontWeight: isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: isSelected
-                            ? Colors.blue.shade800
-                            : Colors.black87,
-                      ),
-                    ),
-                    // Status dot rendering
-                    if (log != null)
-                      Container(
-                        // FIX: Use EdgeInsets.only() instead of EdgeInsets.top()
-                        margin: const EdgeInsets.only(top: 4),
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: log.isDry
-                              ? Colors.green
-                              : Colors.amber.shade800,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
             );
           },
+        ),
+        const SizedBox(height: 12),
+
+        // 4. Legend doubling as this month's tally
+        Row(
+          children: [
+            _LegendItem(
+              icon: Icons.wb_sunny_rounded,
+              color: AppColors.success,
+              label: '$dryCount شب خشک',
+            ),
+            const SizedBox(width: 16),
+            _LegendItem(
+              icon: Icons.nightlight_round,
+              color: AppColors.gentle,
+              label: '${monthLogs.length - dryCount} شب خیس',
+            ),
+            const Spacer(),
+            if (!isCurrentMonth)
+              TextButton(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: () => _jumpToToday(today),
+                child: const Text(
+                  'برو به امروز',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DayCell extends StatelessWidget {
+  final int day;
+  final EnuresisLogEntity? log;
+  final bool isSelected;
+  final bool isToday;
+  final bool isFuture;
+  final VoidCallback onTap;
+
+  const _DayCell({
+    required this.day,
+    required this.log,
+    required this.isSelected,
+    required this.isToday,
+    required this.isFuture,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final log = this.log;
+    final isDry = log?.isDry == true;
+
+    final fill = log == null
+        ? (isSelected ? AppColors.primarySoft : Colors.transparent)
+        : (isDry ? AppColors.successSoft : AppColors.gentleSoft);
+    final textColor = isFuture
+        ? const Color(0xFFCBD5E1)
+        : log == null
+        ? AppColors.ink
+        : (isDry ? AppColors.successDark : AppColors.gentleDark);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: isFuture ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected || isToday
+              ? Border.all(
+                  color: isSelected
+                      ? AppColors.primary
+                      : const Color(0xFF7DD3FC),
+                  width: isSelected ? 2 : 1.2,
+                )
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              '$day',
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.2,
+                fontWeight: isSelected || isToday
+                    ? FontWeight.w800
+                    : FontWeight.w500,
+                color: textColor,
+              ),
+            ),
+            // The icon keeps dry/wet readable without relying on color alone.
+            if (log != null)
+              Icon(
+                isDry ? Icons.wb_sunny_rounded : Icons.nightlight_round,
+                size: 11,
+                color: isDry ? AppColors.success : AppColors.gentle,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+
+  const _LegendItem({
+    required this.icon,
+    required this.color,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.inkSoft,
+          ),
         ),
       ],
     );

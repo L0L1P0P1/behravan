@@ -7,6 +7,7 @@ import 'package:timezone/data/latest_all.dart' as tz;
 import 'core/localization/app_localizations.dart';
 import 'core/providers.dart';
 import 'core/services/notification_service.dart';
+import 'core/theme/app_theme.dart';
 import 'data/database/app_database.dart';
 import 'features/bowel/presentation/bowel_screen.dart';
 import 'features/enuresis/presentation/enuresis_screen.dart';
@@ -44,9 +45,6 @@ class BehravanApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF0284C7);
-    const surfaceColor = Color(0xFFF8FAFC);
-
     return MaterialApp(
       title: 'بهروان',
       debugShowCheckedModeBanner: false,
@@ -58,82 +56,11 @@ class BehravanApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: 'Vazirmatn',
-        scaffoldBackgroundColor: surfaceColor,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: primaryColor,
-          primary: primaryColor,
-          surface: surfaceColor,
-          surfaceContainerLowest: Colors.white,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: surfaceColor,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          centerTitle: false,
-          titleTextStyle: TextStyle(
-            fontFamily: 'Vazirmatn',
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
-          ),
-        ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Color(0xFFE2E8F0), width: 1.2),
-          ),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            textStyle: const TextStyle(
-              fontFamily: 'Vazirmatn',
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            side: const BorderSide(color: Color(0xFFCBD5E1), width: 1.2),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            textStyle: const TextStyle(
-              fontFamily: 'Vazirmatn',
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        navigationBarTheme: NavigationBarThemeData(
-          backgroundColor: Colors.white,
-          elevation: 8,
-          shadowColor: Colors.black.withValues(alpha: 0.08),
-          height: 68,
-          indicatorColor: const Color(0xFFE0F2FE),
-          labelTextStyle: WidgetStateProperty.resolveWith((states) {
-            final isSelected = states.contains(WidgetState.selected);
-            return TextStyle(
-              fontFamily: 'Vazirmatn',
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              color: isSelected
-                  ? const Color(0xFF0369A1)
-                  : const Color(0xFF64748B),
-            );
-          }),
-        ),
+      theme: buildAppTheme(),
+      // The app shows 24-hour clocks everywhere, so pickers must match.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
       ),
       home: const MainNavigationShell(),
     );
@@ -209,7 +136,7 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
               NavigationDestination(
                 icon: Icon(Icons.bar_chart_rounded, color: Color(0xFF64748B)),
                 selectedIcon: Icon(
-                  Icons.analytics_rounded,
+                  Icons.bar_chart_rounded,
                   color: Color(0xFF0284C7),
                 ),
                 label: 'گزارش',

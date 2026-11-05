@@ -1,26 +1,30 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:pdf/pdf.dart' as pw;
-import 'package:pdf/widgets.dart' as pw;
+import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
-import 'package:drift/drift.dart' show Value;
 
 import '../../../core/providers.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/app_ui.dart';
 import '../../../data/database/app_database.dart';
+import '../application/clinical_report_pdf.dart';
 import '../application/progression_service.dart';
 import '../domain/progression_models.dart';
 import 'widgets/celebration_dialog.dart';
 
-class ReportsScreen extends ConsumerWidget {
+class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
 
-  Future<void> _applySuggestedInterval(
-    BuildContext context,
-    WidgetRef ref,
-    int oldInterval,
-    int newInterval,
-  ) async {
+  @override
+  ConsumerState<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends ConsumerState<ReportsScreen> {
+  bool _isExporting = false;
+
+  Future<void> _applySuggestedInterval(int oldInterval, int newInterval) async {
     final db = ref.read(databaseProvider);
     final schedules = await db.select(db.voidingSchedules).get();
     if (schedules.isEmpty) return;
@@ -46,7 +50,7 @@ class ReportsScreen extends ConsumerWidget {
       DateTime.now().toIso8601String(),
     );
 
-    if (context.mounted) {
+    if (mounted) {
       await CelebrationDialog.show(
         context,
         oldInterval: oldInterval,
@@ -56,182 +60,163 @@ class ReportsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _generatePdfReport(BuildContext context, WidgetRef ref) async {
-    final db = ref.read(databaseProvider);
-    final voidingLogs = await db.select(db.voidingLogs).get();
-    final enuresisLogs = await db.select(db.enuresisLogs).get();
-    final bowelLogs = await db.select(db.bowelLogs).get();
-    final evaluation = ref.read(progressionEvaluationProvider);
+  Future<void> _generatePdfReport() async {
+    setState(() => _isExporting = true);
+    try {
+      final db = ref.read(databaseProvider);
+      final bytes = await buildClinicalReportPdf(
+        voidingLogs: await db.select(db.voidingLogs).get(),
+        enuresisLogs: await db.select(db.enuresisLogs).get(),
+        bowelLogs: await db.select(db.bowelLogs).get(),
+        evaluation: ref.read(progressionEvaluationProvider),
+      );
 
-    final pdf = pw.Document();
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: pw.PdfPageFormat.a4,
-        build: (pw.Context ctx) => [
-          pw.Header(
-            level: 0,
-            child: pw.Text(
-              'Behravan Pediatric Voiding & Bowel Report',
-              style: const pw.TextStyle(fontSize: 22),
-            ),
-          ),
-          pw.Paragraph(
-            text: 'Generated: ${DateTime.now().toString().substring(0, 19)}',
-          ),
-          if (evaluation != null) ...[
-            pw.Header(level: 1, child: pw.Text('3-Day Adherence Assessment')),
-            pw.Paragraph(
-              text:
-                  'Success Rate: ${(evaluation.successRate * 100).toInt()}% (${evaluation.successfulLogs}/${evaluation.totalLogs} events)\n'
-                  'Current Interval: ${evaluation.currentInterval} min | Suggested: ${evaluation.suggestedInterval} min\n'
-                  'Clinical Note: ${evaluation.recommendationMessage}',
-            ),
-            pw.SizedBox(height: 12),
-          ],
-          pw.Header(level: 1, child: pw.Text('Enuresis (Night) Logs')),
-          pw.TableHelper.fromTextArray(
-            headers: [
-              'Date',
-              'Outcome',
-              'Woke to Pee',
-              'Fluid Restriction',
-              'Notes',
-            ],
-            data: enuresisLogs
-                .map(
-                  (e) => [
-                    e.date,
-                    e.isDry ? 'Dry' : 'Wet',
-                    e.wokeToPee ? 'Yes' : 'No',
-                    e.eveningFluidRestriction ? 'Yes' : 'No',
-                    e.notes ?? '',
-                  ],
-                )
-                .toList(),
-          ),
-          pw.SizedBox(height: 16),
-          pw.Header(level: 1, child: pw.Text('Daytime Voiding Logs')),
-          pw.TableHelper.fromTextArray(
-            headers: ['Timestamp', 'Type', 'Urgency', 'Volume', 'Notes'],
-            data: voidingLogs
-                .map(
-                  (v) => [
-                    v.timestamp.toString().substring(0, 16),
-                    v.eventType,
-                    v.urgencyLevel?.toString() ?? '-',
-                    v.volumeEstimation ?? '-',
-                    v.notes ?? '',
-                  ],
-                )
-                .toList(),
-          ),
-          pw.SizedBox(height: 16),
-          pw.Header(level: 1, child: pw.Text('Bowel Logs (Bristol Scale)')),
-          pw.TableHelper.fromTextArray(
-            headers: [
-              'Timestamp',
-              'Bristol Type',
-              'Straining',
-              'Blood',
-              'Soiling',
-              'Notes',
-            ],
-            data: bowelLogs
-                .map(
-                  (b) => [
-                    b.timestamp.toString().substring(0, 16),
-                    'Type ${b.bristolType}',
-                    b.strainingLevel.toString(),
-                    b.bloodPresent ? 'Yes' : 'No',
-                    b.soilingAccident ? 'Yes' : 'No',
-                    b.notes ?? '',
-                  ],
-                )
-                .toList(),
-          ),
-        ],
-      ),
-    );
-
-    await Printing.sharePdf(
-      bytes: await pdf.save(),
-      filename: 'behravan_clinical_report.pdf',
-    );
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'behravan_clinical_report.pdf',
+      );
+    } catch (e, st) {
+      debugPrint('PDF export failed: $e\n$st');
+      if (mounted) {
+        AppToast.show(
+          context,
+          message: 'ساخت گزارش انجام نشد. دوباره تلاش کنید.',
+          tone: ToastTone.neutral,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final evaluation = ref.watch(progressionEvaluationProvider);
-    final voidingCount = ref.watch(voidingLogsProvider).value?.length ?? 0;
-    final enuresisCount = ref.watch(enuresisLogsProvider).value?.length ?? 0;
-    final bowelCount = ref.watch(bowelLogsProvider).value?.length ?? 0;
+    final voidingLogs = ref.watch(voidingLogsProvider).value ?? const [];
+    final enuresisLogs = ref.watch(enuresisLogsProvider).value ?? const [];
+    final bowelLogs = ref.watch(bowelLogsProvider).value ?? const [];
+    final totalLogs =
+        voidingLogs.length + enuresisLogs.length + bowelLogs.length;
+
+    final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+    final weekAgoKey = DateFormat('yyyy-MM-dd').format(weekAgo);
+    final weekVoiding = voidingLogs.where((l) => l.timestamp.isAfter(weekAgo));
+    final weekAccidents = weekVoiding.where((l) => l.eventType == 'accident');
+    final weekNights = enuresisLogs.where(
+      (l) => l.date.compareTo(weekAgoKey) > 0,
+    );
+    final weekDryNights = weekNights.where((l) => l.isDry);
+    final weekBowel = bowelLogs.where((l) => l.timestamp.isAfter(weekAgo));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('تحلیل درمان و گزارش‌ها')),
+      appBar: AppBar(title: const Text('گزارش و پیشرفت')),
       body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
           // 3-Day Progression Card
           if (evaluation != null) ...[
             _ProgressionBanner(
               evaluation: evaluation,
-              onApply: (oldInterval, newInterval) => _applySuggestedInterval(
-                context,
-                ref,
-                oldInterval,
-                newInterval,
-              ),
+              onApply: _applySuggestedInterval,
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 22),
           ],
 
-          // Total Overview Grid
-          Row(
-            children: [
-              Expanded(
-                child: _MetricCard(
-                  title: 'ادرار روزانه',
-                  count: voidingCount,
-                  icon: Icons.water_drop_rounded,
-                  color: const Color(0xFF0284C7),
+          // Weekly Overview
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: SectionHeader(title: '۷ روز اخیر'),
+          ),
+          const SizedBox(height: 10),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _MetricCard(
+                    title: 'ادرار',
+                    value: '${weekVoiding.length}',
+                    caption: weekAccidents.isEmpty
+                        ? 'بدون خیس شدن'
+                        : '${weekAccidents.length} بار خیس شدن',
+                    icon: Icons.water_drop_rounded,
+                    color: AppColors.primary,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricCard(
-                  title: 'شب‌ادراری',
-                  count: enuresisCount,
-                  icon: Icons.nightlight_rounded,
-                  color: const Color(0xFF6366F1),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MetricCard(
+                    title: 'شب خشک',
+                    value: '${weekDryNights.length}',
+                    caption: 'از ${weekNights.length} شب ثبت‌شده',
+                    icon: Icons.nightlight_rounded,
+                    color: const Color(0xFF6366F1),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _MetricCard(
-                  title: 'مدفوع',
-                  count: bowelCount,
-                  icon: Icons.health_and_safety_rounded,
-                  color: const Color(0xFF059669),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _MetricCard(
+                    title: 'مدفوع',
+                    value: '${weekBowel.length}',
+                    caption: 'نوبت ثبت‌شده',
+                    icon: Icons.health_and_safety_rounded,
+                    color: AppColors.success,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
 
-          // Primary Sharing Button
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              backgroundColor: const Color(0xFF0F172A),
+          // Primary Sharing Card
+          AppCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'گزارش برای پزشک',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  totalLogs == 0
+                      ? 'بعد از اولین ثبت می‌توانید گزارش PDF بسازید.'
+                      : 'همه $totalLogs ثبت در یک فایل PDF برای پزشک معالج.',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: AppColors.muted,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.ink,
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: _isExporting
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.picture_as_pdf_rounded),
+                  label: Text(
+                    _isExporting ? 'در حال ساخت گزارش...' : 'ساخت و اشتراک PDF',
+                  ),
+                  onPressed: totalLogs == 0 || _isExporting
+                      ? null
+                      : _generatePdfReport,
+                ),
+              ],
             ),
-            icon: const Icon(
-              Icons.picture_as_pdf_rounded,
-              color: Color(0xFF38BDF8),
-            ),
-            label: const Text('ایجاد و اشتراک PDF برای پزشک معالج'),
-            onPressed: () => _generatePdfReport(context, ref),
           ),
           const SizedBox(height: 12),
         ],
@@ -242,13 +227,15 @@ class ReportsScreen extends ConsumerWidget {
 
 class _MetricCard extends StatelessWidget {
   final String title;
-  final int count;
+  final String value;
+  final String caption;
   final IconData icon;
   final Color color;
 
   const _MetricCard({
     required this.title,
-    required this.count,
+    required this.value,
+    required this.caption,
     required this.icon,
     required this.color,
   });
@@ -256,11 +243,11 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         children: [
@@ -274,20 +261,26 @@ class _MetricCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '$count',
+            title,
+            textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF0F172A),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppColors.inkSoft,
             ),
           ),
           Text(
-            title,
+            value,
             style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF64748B),
+              fontSize: 22,
+              fontWeight: FontWeight.w900,
+              color: AppColors.ink,
             ),
+          ),
+          Text(
+            caption,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: AppColors.muted),
           ),
         ],
       ),
@@ -304,9 +297,11 @@ class _ProgressionBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isProgress = evaluation.status == ProgressionStatus.progress;
-    final color = isProgress
-        ? const Color(0xFF059669)
-        : const Color(0xFF0284C7);
+    final color = isProgress ? AppColors.success : AppColors.primary;
+    // A rate over no data would read as a discouraging "0% success".
+    final hasRate =
+        evaluation.totalLogs > 0 &&
+        evaluation.status != ProgressionStatus.insufficientData;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -325,33 +320,35 @@ class _ProgressionBanner extends StatelessWidget {
                 color: color,
               ),
               const SizedBox(width: 8),
-              const Text(
-                'تحلیل پیشرفت ۳ روز اخیر',
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(10),
-                ),
+              const Expanded(
                 child: Text(
-                  '${(evaluation.successRate * 100).toInt()}% موفقیت',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
+                  'پیشرفت ۳ روز اخیر',
+                  style: TextStyle(
                     fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: AppColors.ink,
                   ),
                 ),
               ),
+              if (hasRate)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${(evaluation.successRate * 100).toInt()}٪ موفقیت',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -359,8 +356,8 @@ class _ProgressionBanner extends StatelessWidget {
             evaluation.recommendationMessage,
             style: const TextStyle(
               fontSize: 13,
-              color: Color(0xFF334155),
-              height: 1.5,
+              color: AppColors.inkSoft,
+              height: 1.6,
             ),
           ),
           if (isProgress &&
@@ -370,14 +367,14 @@ class _ProgressionBanner extends StatelessWidget {
               width: double.infinity,
               child: FilledButton(
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF059669),
+                  backgroundColor: AppColors.success,
                 ),
                 onPressed: () => onApply(
                   evaluation.currentInterval,
                   evaluation.suggestedInterval,
                 ),
                 child: Text(
-                  'اعمال ارتقای فاصله به ${evaluation.suggestedInterval} دقیقه',
+                  'افزایش فاصله به ${evaluation.suggestedInterval} دقیقه',
                 ),
               ),
             ),

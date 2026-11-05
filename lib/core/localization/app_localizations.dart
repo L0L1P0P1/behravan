@@ -14,7 +14,7 @@ class AppLocalizations {
 
   static const Map<String, Map<String, String>> _translations = {
     'fa': {
-      'appTitle': 'بهرavan',
+      'appTitle': 'بهروان',
       'voidingTab': 'ادرار',
       'enuresisTab': 'شب‌ادراری',
       'bowelTab': 'مدفوع',

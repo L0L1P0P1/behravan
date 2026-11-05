@@ -23,6 +23,22 @@
           };
         };
 
+        # Gradle can't install anything into this read-only SDK, so it must list
+        # every version the build asks for: compileSdk of the app and its plugins
+        # (34-36), and the NDK and CMake that plugins with native code need.
+        androidSdk =
+          (pkgs.androidenv.composeAndroidPackages {
+            platformVersions = [
+              "34"
+              "35"
+              "36"
+            ];
+            buildToolsVersions = [ "36.0.0" ];
+            includeNDK = true;
+            ndkVersions = [ "28.2.13676358" ];
+            cmakeVersions = [ "3.22.1" ];
+          }).androidsdk;
+
         fhs = pkgs.buildFHSEnv {
           name = "flutter-fhs-env";
 
@@ -89,9 +105,9 @@
             ];
 
           profile = ''
-            # Set up Android SDK paths in user directory
-            export ANDROID_HOME="$HOME/Android/Sdk"
-            export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
+            # Set up Android SDK paths
+            export ANDROID_HOME="${androidSdk}/libexec/android-sdk"
+            export ANDROID_SDK_ROOT="${androidSdk}/libexec/android-sdk"
             export ANDROID_USER_HOME="$HOME/.android"
             export JAVA_HOME="${pkgs.jdk17}/lib/openjdk"
 

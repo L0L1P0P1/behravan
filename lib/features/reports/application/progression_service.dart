@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/providers.dart';
 import '../domain/progression_models.dart';
 
@@ -76,8 +77,7 @@ final progressionEvaluationProvider = Provider<IntervalEvaluationResult?>((
       status: ProgressionStatus.insufficientData,
       currentInterval: currentInterval,
       suggestedInterval: currentInterval,
-      recommendationMessage:
-          'اطلاعات ۳ روز اخیر کافی نیست (حداقل ۶ ثبت نیاز است). برنامه فعلی را ادامه دهید.',
+      recommendationMessage: 'اطلاعات ۳ روز اخیر کافی نیست (حداقل ۶ ثبت نیاز است). برنامه فعلی را ادامه دهید.',
     );
   }
 
@@ -109,8 +109,7 @@ final progressionEvaluationProvider = Provider<IntervalEvaluationResult?>((
       status: ProgressionStatus.regress,
       currentInterval: currentInterval,
       suggestedInterval: prevInterval,
-      recommendationMessage:
-          'تعداد تصادف‌ها در ۳ روز گذشته بالا بوده است. کاهش موقت فاصله برای بازیابی کنترل توصیه می‌شود.',
+      recommendationMessage: 'دفعات خیس شدن در ۳ روز گذشته بالا بوده است. کاهش موقت فاصله برای بازیابی کنترل توصیه می‌شود.',
     );
   } else {
     return IntervalEvaluationResult(
