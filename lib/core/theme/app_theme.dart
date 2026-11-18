@@ -15,6 +15,16 @@ class AppColors {
   static const gentleDark = Color(0xFF92400E);
   static const gentleSoft = Color(0xFFFEF3C7);
 
+  // Nights read as weather: a dry night is sunny, a wet one rainy. Rain stays a
+  // calm indigo so it never looks like a warning.
+  static const sunny = Color(0xFFF59E0B);
+  static const sunnyDark = Color(0xFFB45309);
+  static const sunnySoft = Color(0xFFFEF3C7);
+
+  static const rainy = Color(0xFF6366F1);
+  static const rainyDark = Color(0xFF4338CA);
+  static const rainySoft = Color(0xFFE0E7FF);
+
   static const danger = Color(0xFFDC2626);
 
   static const ink = Color(0xFF0F172A);

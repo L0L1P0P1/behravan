@@ -12,6 +12,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/widgets/app_ui.dart';
 import '../../../data/database/app_database.dart';
+import '../../tutorial/presentation/tutorial_screen.dart';
 import '../../reports/application/progression_service.dart';
 import '../../reports/domain/progression_models.dart';
 import '../../reports/presentation/widgets/celebration_dialog.dart';
@@ -461,7 +462,10 @@ class _VoidingScreenState extends ConsumerState<VoidingScreen> {
         progression.suggestedInterval > progression.currentInterval;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('برنامه تمرین مثانه')),
+      appBar: AppBar(
+        title: const Text('برنامه تمرین مثانه'),
+        actions: const [TutorialButton(topic: TutorialTopic.voiding)],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [

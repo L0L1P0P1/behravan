@@ -9,7 +9,9 @@ import 'package:uuid/uuid.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_ui.dart';
+import '../../../core/widgets/night_weather.dart';
 import '../../../data/database/app_database.dart';
+import '../../tutorial/presentation/tutorial_screen.dart';
 import '../domain/dry_streaks.dart';
 import 'widgets/jalali_calendar_grid.dart';
 
@@ -91,8 +93,8 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
     AppToast.show(
       context,
       message: isDry
-          ? 'ثبت شد؛ آفرین به قهرمان ما! 🌟'
-          : 'ثبت شد؛ نگران نباش، ادامه می‌دیم! 🌙',
+          ? 'یک شب آفتابی دیگر! آفرین قهرمان ☀️'
+          : 'ثبت شد؛ بعد از هر بارون، آفتاب درمیاد! 🌦️',
       tone: isDry ? ToastTone.success : ToastTone.gentle,
     );
   }
@@ -132,15 +134,11 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: isDry
-                            ? AppColors.successSoft
-                            : AppColors.gentleSoft,
+                            ? AppColors.sunnySoft
+                            : AppColors.rainySoft,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        isDry ? Icons.wb_sunny_rounded : Icons.nightlight_round,
-                        color: isDry ? AppColors.success : AppColors.gentle,
-                        size: 22,
-                      ),
+                      child: NightWeatherIcon(isDry: isDry, size: 22),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -148,7 +146,9 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isDry ? 'جزئیات شب خشک' : 'جزئیات شب خیس',
+                            isDry
+                                ? 'جزئیات شب خشک (آفتابی)'
+                                : 'جزئیات شب خیس (بارانی)',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w800,
@@ -208,8 +208,8 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                   child: FilledButton(
                     style: FilledButton.styleFrom(
                       backgroundColor: isDry
-                          ? AppColors.success
-                          : AppColors.gentle,
+                          ? AppColors.sunnyDark
+                          : AppColors.rainy,
                     ),
                     onPressed: () {
                       Navigator.pop(ctx);
@@ -245,7 +245,10 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
     final enuresisAsync = ref.watch(enuresisLogsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('پیگیری شب‌ادراری')),
+      appBar: AppBar(
+        title: const Text('پیگیری شب‌ادراری'),
+        actions: const [TutorialButton(topic: TutorialTopic.enuresis)],
+      ),
       body: enuresisAsync.when(
         data: (logs) {
           final Map<String, EnuresisLogEntity> logMap = {
@@ -269,11 +272,11 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                 children: [
                   Expanded(
                     child: _StreakCard(
-                      title: 'پیوستگی شب‌های خشک',
+                      title: 'شب‌های آفتابی پیاپی',
                       nights: streaks.current,
-                      icon: Icons.local_fire_department_rounded,
-                      iconColor: AppColors.success,
-                      valueColor: AppColors.successDark,
+                      icon: Icons.wb_sunny_rounded,
+                      iconColor: AppColors.sunny,
+                      valueColor: AppColors.sunnyDark,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -287,6 +290,13 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                     ),
                   ),
                 ],
+              ),
+
+              const SizedBox(height: 10),
+              _WeekForecastCard(
+                logMap: logMap,
+                today: todayMidnight,
+                currentStreak: streaks.current,
               ),
 
               const SizedBox(height: 16),
@@ -362,13 +372,14 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                         Expanded(
                           child: _NightChoiceButton(
                             label: 'شب خشک',
-                            icon: Icons.wb_sunny_rounded,
+                            caption: 'آفتابی',
+                            isDry: true,
                             isSelected: isDryNight,
-                            accent: AppColors.success,
-                            textColor: AppColors.successDark,
-                            selectedFill: AppColors.successSoft,
-                            idleFill: const Color(0xFFF0FDF4),
-                            idleBorder: const Color(0xFF86EFAC),
+                            accent: AppColors.sunny,
+                            textColor: AppColors.sunnyDark,
+                            selectedFill: AppColors.sunnySoft,
+                            idleFill: const Color(0xFFFFFBEB),
+                            idleBorder: const Color(0xFFFDE68A),
                             // Keeps any details already saved for this night.
                             onTap: () => _saveNightStatus(
                               isDry: true,
@@ -383,13 +394,14 @@ class _EnuresisScreenState extends ConsumerState<EnuresisScreen> {
                         Expanded(
                           child: _NightChoiceButton(
                             label: 'شب خیس',
-                            icon: Icons.nightlight_round,
+                            caption: 'بارانی',
+                            isDry: false,
                             isSelected: isWetNight,
-                            accent: AppColors.gentle,
-                            textColor: AppColors.gentleDark,
-                            selectedFill: AppColors.gentleSoft,
-                            idleFill: const Color(0xFFFFFBEB),
-                            idleBorder: const Color(0xFFFDE68A),
+                            accent: AppColors.rainy,
+                            textColor: AppColors.rainyDark,
+                            selectedFill: AppColors.rainySoft,
+                            idleFill: const Color(0xFFEEF2FF),
+                            idleBorder: const Color(0xFFC7D2FE),
                             onTap: () => _showNightDetailSheet(
                               isDry: false,
                               existingLog: selectedLog,
@@ -511,7 +523,8 @@ class _StreakCard extends StatelessWidget {
 
 class _NightChoiceButton extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final String caption;
+  final bool isDry;
   final bool isSelected;
   final Color accent;
   final Color textColor;
@@ -522,7 +535,8 @@ class _NightChoiceButton extends StatelessWidget {
 
   const _NightChoiceButton({
     required this.label,
-    required this.icon,
+    required this.caption,
+    required this.isDry,
     required this.isSelected,
     required this.accent,
     required this.textColor,
@@ -537,7 +551,7 @@ class _NightChoiceButton extends StatelessWidget {
     return TapSurface(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         color: isSelected ? selectedFill : idleFill,
         border: Border.all(
@@ -548,19 +562,30 @@ class _NightChoiceButton extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            isSelected ? Icons.check_circle_rounded : icon,
-            color: accent,
-            size: 20,
-          ),
+          isSelected
+              ? Icon(Icons.check_circle_rounded, color: accent, size: 28)
+              : NightWeatherIcon(isDry: isDry, size: 28),
           const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: textColor,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: textColor,
+                ),
+              ),
+              Text(
+                caption,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: textColor.withValues(alpha: 0.75),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -607,6 +632,154 @@ class _FeatureChip extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The last seven nights as a weather forecast, plus how far the current run
+/// is from the next dry-streak milestone.
+class _WeekForecastCard extends StatelessWidget {
+  static const _milestones = [3, 7, 14, 30];
+
+  final Map<String, EnuresisLogEntity> logMap;
+  final DateTime today;
+  final int currentStreak;
+
+  const _WeekForecastCard({
+    required this.logMap,
+    required this.today,
+    required this.currentStreak,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dateKey = DateFormat('yyyy-MM-dd');
+    final days = [
+      for (var i = 6; i >= 0; i--)
+        DateTime(today.year, today.month, today.day - i),
+    ];
+    final next = _milestones.where((m) => m > currentStreak).firstOrNull;
+
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: SectionHeader(title: 'هفته من', trailing: '۷ شب اخیر'),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (final day in days)
+                Expanded(
+                  child: _ForecastDay(
+                    weekday: Jalali.fromDateTime(day).formatter.wN
+                        .substring(0, 1),
+                    log: logMap[dateKey.format(day)],
+                    isToday: day == today,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (next != null) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: currentStreak / next,
+                      minHeight: 8,
+                      backgroundColor: AppColors.sunnySoft,
+                      color: AppColors.sunny,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '$currentStreak/$next',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.sunnyDark,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${next - currentStreak} شب آفتابی دیگر تا نشان «$next شب آفتابی» 🏅',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkSoft,
+              ),
+            ),
+          ] else
+            const Text(
+              'بیش از یک ماه شب آفتابی پیاپی؛ فوق‌العاده‌ای! 🏆',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.inkSoft,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ForecastDay extends StatelessWidget {
+  final String weekday;
+  final EnuresisLogEntity? log;
+  final bool isToday;
+
+  const _ForecastDay({
+    required this.weekday,
+    required this.log,
+    required this.isToday,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final log = this.log;
+
+    return Column(
+      children: [
+        Text(
+          isToday ? 'امروز' : weekday,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+            color: isToday ? AppColors.primary : AppColors.muted,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          width: 34,
+          height: 34,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: log == null
+                ? Colors.transparent
+                : (log.isDry ? AppColors.sunnySoft : AppColors.rainySoft),
+            shape: BoxShape.circle,
+            border: log == null
+                ? Border.all(color: AppColors.border, width: 1.5)
+                : null,
+          ),
+          child: log == null
+              ? const Text(
+                  '?',
+                  style: TextStyle(fontSize: 13, color: AppColors.muted),
+                )
+              : NightWeatherIcon(isDry: log.isDry, size: 20),
+        ),
+      ],
     );
   }
 }

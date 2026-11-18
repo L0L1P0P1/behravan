@@ -6,8 +6,17 @@ import 'package:behravan/features/bowel/presentation/bowel_screen.dart';
 import 'package:behravan/features/enuresis/domain/dry_streaks.dart';
 import 'package:behravan/features/enuresis/presentation/enuresis_screen.dart';
 import 'package:behravan/features/reports/application/clinical_report_pdf.dart';
+import 'package:behravan/features/reports/application/data_export.dart';
 import 'package:behravan/features/reports/presentation/reports_screen.dart';
+import 'package:behravan/features/rewards/domain/rewards.dart';
+import 'package:behravan/features/rewards/presentation/badge_unlocked_dialog.dart';
+import 'package:behravan/features/rewards/presentation/rewards_screen.dart';
+import 'package:behravan/features/tutorial/presentation/tutorial_screen.dart';
 import 'package:behravan/features/voiding/presentation/voiding_screen.dart';
+
+import 'dart:convert';
+
+import 'package:archive/archive.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -196,7 +205,11 @@ void main() {
   testWidgets('reports hide the rate until there is enough data', (
     tester,
   ) async {
-    await _pumpScreen(tester, const ReportsScreen());
+    await _pumpScreen(
+      tester,
+      const ReportsScreen(),
+      size: const Size(360, 2000),
+    );
 
     expect(find.textContaining('موفقیت'), findsNothing);
     final button = tester.widget<FilledButton>(
@@ -221,6 +234,7 @@ void main() {
       'enuresis': const EnuresisScreen(),
       'bowel': const BowelScreen(),
       'reports': const ReportsScreen(),
+      'rewards': const RewardsScreen(),
     };
 
     for (final MapEntry(key: name, value: screen) in screens.entries) {
@@ -236,6 +250,37 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    for (final topic in TutorialTopic.values) {
+      testWidgets('tutorial page ${topic.name}', (tester) async {
+        await _pumpScreen(
+          tester,
+          TutorialScreen(initialTopic: topic),
+          size: const Size(320, 640),
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('badge dialog', (tester) async {
+      await _pumpScreen(tester, const SizedBox(), size: const Size(320, 640));
+      final badges = computeRewards(
+        voiding: voiding,
+        nights: nights,
+        bowel: bowel,
+        today: today,
+      ).badges;
+      for (final shown in [badges.take(1).toList(), badges]) {
+        BadgeUnlockedDialog.show(
+          tester.element(find.byType(SizedBox).first),
+          shown,
+        );
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.textContaining('هورا'));
+        await tester.pumpAndSettle();
+      }
+    });
 
     testWidgets('bowel entry sheet', (tester) async {
       await _pumpScreen(
@@ -409,5 +454,102 @@ void main() {
     );
 
     expect(bytes, isNotEmpty);
+  });
+
+  group('rewards', () {
+    test('every entry earns stars, successes earn more', () {
+      final rewards = computeRewards(
+        voiding: [
+          _void(now, 'prompted_success'),
+          _void(now, 'spontaneous'),
+          _void(now, 'accident'),
+        ],
+        nights: [
+          _night(daysAgo(1), isDry: true),
+          _night(daysAgo(2), isDry: false),
+        ],
+        bowel: [_bowel(now, 4), _bowel(now, 1)],
+        today: today,
+      );
+
+      expect(rewards.stars, (2 + 1 + 1) + (3 + 1) + (2 + 1));
+      expect(rewards.level.number, 1);
+      expect(rewards.loggingStreak, 3);
+      final unlocked = {for (final b in rewards.unlocked) b.id};
+      expect(unlocked, containsAll(['first_log', 'honest', 'diary_3']));
+      expect(unlocked, isNot(contains('dry_3')));
+    });
+
+    test('levels and dry-streak badges follow the history', () {
+      final rewards = computeRewards(
+        voiding: const [],
+        nights: [for (var i = 1; i <= 9; i++) _night(daysAgo(i), isDry: true)],
+        bowel: const [],
+        today: today,
+      );
+
+      expect(rewards.stars, 27);
+      expect(rewards.level.number, 2);
+      expect(rewards.nextLevel!.minStars, 75);
+      final dry = {for (final b in rewards.badges) b.id: b};
+      expect(dry['dry_7']!.isUnlocked, isTrue);
+      expect(dry['dry_14']!.remaining, 5);
+      expect(rewards.nextGoal!.id, 'dry_14');
+    });
+
+    test('consecutiveDayRuns tolerates a missing today', () {
+      final key = DateFormat('yyyy-MM-dd');
+      final runs = consecutiveDayRuns({
+        key.format(daysAgo(1)),
+        key.format(daysAgo(2)),
+        key.format(daysAgo(10)),
+        key.format(daysAgo(11)),
+        key.format(daysAgo(12)),
+      }, today);
+
+      expect(runs.current, 2);
+      expect(runs.longest, 3);
+    });
+  });
+
+  group('data export', () {
+    final tables = buildExportTables(
+      voidingLogs: [_void(DateTime(2026, 11, 5, 8, 30), 'accident')],
+      enuresisLogs: [
+        _night(DateTime(2026, 11, 5), isDry: false, notes: 'خواب "سنگین", بود'),
+      ],
+      bowelLogs: [_bowel(DateTime(2026, 11, 5, 9), 2, blood: true)],
+    );
+
+    test('CSV starts with a BOM and quotes free text', () {
+      final bytes = encodeCsv(tables[1]);
+      final csv = utf8.decode(bytes.sublist(3));
+
+      expect(bytes.take(3), [0xEF, 0xBB, 0xBF]);
+      expect(csv.startsWith('Morning Date,Jalali Date,'), isTrue);
+      expect(
+        csv,
+        contains(
+          '2026-11-05,1405/08/14,Thursday,Wet,FALSE,FALSE,FALSE,'
+          '"خواب ""سنگین"", بود"\r\n',
+        ),
+      );
+    });
+
+    test('XLSX holds one sheet per diary with typed cells', () {
+      final archive = ZipDecoder().decodeBytes(encodeXlsx(tables));
+      String part(String name) =>
+          utf8.decode(archive.findFile(name)!.readBytes()!);
+
+      expect(part('xl/workbook.xml'), contains('<sheet name="Bowel"'));
+      final voiding = part('xl/worksheets/sheet1.xml');
+      // 2026-11-05 08:30 as an Excel serial date with the date-time style.
+      expect(voiding, contains('<c r="A2" s="2"><v>46331.354166666664</v>'));
+      expect(voiding, contains('<c r="E2" t="b"><v>1</v></c>'));
+      final enuresis = part('xl/worksheets/sheet2.xml');
+      expect(enuresis, contains('خواب &quot;سنگین&quot;, بود'));
+      final bowel = part('xl/worksheets/sheet3.xml');
+      expect(bowel, contains('Constipation'));
+    });
   });
 }

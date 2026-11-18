@@ -12,6 +12,10 @@ import 'data/database/app_database.dart';
 import 'features/bowel/presentation/bowel_screen.dart';
 import 'features/enuresis/presentation/enuresis_screen.dart';
 import 'features/reports/presentation/reports_screen.dart';
+import 'features/rewards/application/rewards_provider.dart';
+import 'features/rewards/presentation/badge_unlocked_dialog.dart';
+import 'features/rewards/presentation/rewards_screen.dart';
+import 'features/tutorial/presentation/tutorial_screen.dart';
 import 'features/voiding/presentation/voiding_screen.dart';
 
 void main() async {
@@ -67,21 +71,61 @@ class BehravanApp extends StatelessWidget {
   }
 }
 
-class MainNavigationShell extends StatefulWidget {
+class MainNavigationShell extends ConsumerStatefulWidget {
   const MainNavigationShell({super.key});
 
   @override
-  State<MainNavigationShell> createState() => _MainNavigationShellState();
+  ConsumerState<MainNavigationShell> createState() =>
+      _MainNavigationShellState();
 }
 
-class _MainNavigationShellState extends State<MainNavigationShell> {
+class _MainNavigationShellState extends ConsumerState<MainNavigationShell> {
   int _currentIndex = 0;
+  bool _celebrating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (!(prefs.getBool(tutorialSeenKey) ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await TutorialScreen.open(context);
+        await prefs.setBool(tutorialSeenKey, true);
+        await _celebrateNewBadges();
+      });
+    }
+    ref.listenManual(rewardsProvider, (_, _) => _celebrateNewBadges());
+  }
+
+  /// Shows newly earned badges once, after the save toast has had a moment.
+  Future<void> _celebrateNewBadges() async {
+    if (_celebrating) return;
+    final prefs = ref.read(sharedPreferencesProvider);
+    // Waits for the first-launch tutorial, which calls back when closed.
+    if (!(prefs.getBool(tutorialSeenKey) ?? false)) return;
+    final seen = (prefs.getStringList(seenBadgesKey) ?? const []).toSet();
+    final fresh = [
+      for (final b in ref.read(rewardsProvider).unlocked)
+        if (!seen.contains(b.id)) b,
+    ];
+    if (fresh.isEmpty) return;
+
+    _celebrating = true;
+    await prefs.setStringList(seenBadgesKey, [
+      ...seen,
+      for (final b in fresh) b.id,
+    ]);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (mounted) await BadgeUnlockedDialog.show(context, fresh);
+    _celebrating = false;
+  }
 
   // Individual const items inside a regular List literal
   final List<Widget> _screens = [
     const VoidingScreen(),
     const EnuresisScreen(),
     const BowelScreen(),
+    const RewardsScreen(),
     const ReportsScreen(),
   ];
 
@@ -132,6 +176,17 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
                   color: Color(0xFF0284C7),
                 ),
                 label: 'مدفوع',
+              ),
+              NavigationDestination(
+                icon: Icon(
+                  Icons.emoji_events_outlined,
+                  color: Color(0xFF64748B),
+                ),
+                selectedIcon: Icon(
+                  Icons.emoji_events_rounded,
+                  color: Color(0xFF0284C7),
+                ),
+                label: 'جایزه',
               ),
               NavigationDestination(
                 icon: Icon(Icons.bar_chart_rounded, color: Color(0xFF64748B)),

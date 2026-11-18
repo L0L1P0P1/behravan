@@ -3,6 +3,7 @@ import 'package:shamsi_date/shamsi_date.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/night_weather.dart';
 import '../../../../data/database/app_database.dart';
 
 class JalaliCalendarGrid extends StatefulWidget {
@@ -170,16 +171,11 @@ class _JalaliCalendarGridState extends State<JalaliCalendarGrid> {
         // 4. Legend doubling as this month's tally
         Row(
           children: [
+            _LegendItem(isDry: true, label: '$dryCount آفتابی'),
+            const SizedBox(width: 14),
             _LegendItem(
-              icon: Icons.wb_sunny_rounded,
-              color: AppColors.success,
-              label: '$dryCount شب خشک',
-            ),
-            const SizedBox(width: 16),
-            _LegendItem(
-              icon: Icons.nightlight_round,
-              color: AppColors.gentle,
-              label: '${monthLogs.length - dryCount} شب خیس',
+              isDry: false,
+              label: '${monthLogs.length - dryCount} بارانی',
             ),
             const Spacer(),
             if (!isCurrentMonth)
@@ -224,12 +220,12 @@ class _DayCell extends StatelessWidget {
 
     final fill = log == null
         ? (isSelected ? AppColors.primarySoft : Colors.transparent)
-        : (isDry ? AppColors.successSoft : AppColors.gentleSoft);
+        : (isDry ? AppColors.sunnySoft : AppColors.rainySoft);
     final textColor = isFuture
         ? const Color(0xFFCBD5E1)
         : log == null
         ? AppColors.ink
-        : (isDry ? AppColors.successDark : AppColors.gentleDark);
+        : (isDry ? AppColors.sunnyDark : AppColors.rainyDark);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -263,12 +259,7 @@ class _DayCell extends StatelessWidget {
               ),
             ),
             // The icon keeps dry/wet readable without relying on color alone.
-            if (log != null)
-              Icon(
-                isDry ? Icons.wb_sunny_rounded : Icons.nightlight_round,
-                size: 11,
-                color: isDry ? AppColors.success : AppColors.gentle,
-              ),
+            if (log != null) NightWeatherIcon(isDry: isDry, size: 13),
           ],
         ),
       ),
@@ -277,22 +268,17 @@ class _DayCell extends StatelessWidget {
 }
 
 class _LegendItem extends StatelessWidget {
-  final IconData icon;
-  final Color color;
+  final bool isDry;
   final String label;
 
-  const _LegendItem({
-    required this.icon,
-    required this.color,
-    required this.label,
-  });
+  const _LegendItem({required this.isDry, required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: color),
+        NightWeatherIcon(isDry: isDry, size: 16),
         const SizedBox(width: 4),
         Text(
           label,

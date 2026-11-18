@@ -1,6 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
+
+import '../../../../core/widgets/confetti.dart';
 
 class CelebrationDialog extends StatefulWidget {
   final int oldInterval;
@@ -39,7 +39,7 @@ class _CelebrationDialogState extends State<CelebrationDialog>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _scaleAnimation;
-  late final List<_ConfettiParticle> _particles;
+  late final List<ConfettiParticle> _particles;
 
   @override
   void initState() {
@@ -54,27 +54,7 @@ class _CelebrationDialogState extends State<CelebrationDialog>
       curve: const Interval(0.0, 0.6, curve: Curves.elasticOut),
     );
 
-    final random = Random();
-    final colors = [
-      Colors.amber,
-      Colors.orange,
-      Colors.greenAccent,
-      Colors.lightBlueAccent,
-      Colors.pinkAccent,
-      Colors.purpleAccent,
-    ];
-
-    _particles = List.generate(45, (i) {
-      final angle = random.nextDouble() * 2 * pi;
-      final speed = 80.0 + random.nextDouble() * 160.0;
-      return _ConfettiParticle(
-        color: colors[random.nextInt(colors.length)],
-        dx: cos(angle) * speed,
-        dy: sin(angle) * speed - 40,
-        radius: 3.0 + random.nextDouble() * 4.0,
-        rotation: random.nextDouble() * pi,
-      );
-    });
+    _particles = ConfettiParticle.burst();
 
     _controller.forward();
   }
@@ -100,7 +80,7 @@ class _CelebrationDialogState extends State<CelebrationDialog>
               builder: (context, _) {
                 return CustomPaint(
                   size: const Size(340, 340),
-                  painter: _ConfettiPainter(
+                  painter: ConfettiPainter(
                     progress: _controller.value,
                     particles: _particles,
                   ),
@@ -243,51 +223,4 @@ class _CelebrationDialogState extends State<CelebrationDialog>
       ),
     );
   }
-}
-
-class _ConfettiParticle {
-  final Color color;
-  final double dx;
-  final double dy;
-  final double radius;
-  final double rotation;
-
-  _ConfettiParticle({
-    required this.color,
-    required this.dx,
-    required this.dy,
-    required this.radius,
-    required this.rotation,
-  });
-}
-
-class _ConfettiPainter extends CustomPainter {
-  final double progress;
-  final List<_ConfettiParticle> particles;
-
-  _ConfettiPainter({required this.progress, required this.particles});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (progress == 0.0) return;
-
-    final center = Offset(size.width / 2, size.height / 2 - 30);
-    final opacity = (1.0 - progress).clamp(0.0, 1.0);
-
-    for (final p in particles) {
-      final paint = Paint()
-        ..color = p.color.withValues(alpha: opacity)
-        ..style = PaintingStyle.fill;
-
-      // Curve movement out and gravity pull down
-      final x = center.dx + p.dx * progress;
-      final y = center.dy + p.dy * progress + (140 * progress * progress);
-
-      canvas.drawCircle(Offset(x, y), p.radius * (1.0 - progress * 0.3), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ConfettiPainter oldDelegate) =>
-      oldDelegate.progress != progress;
 }

@@ -9,6 +9,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../../core/widgets/app_ui.dart';
 import '../../../data/database/app_database.dart';
+import '../../tutorial/presentation/tutorial_screen.dart';
 
 class BowelScreen extends ConsumerStatefulWidget {
   const BowelScreen({super.key});
@@ -138,7 +139,10 @@ class _BowelScreenState extends ConsumerState<BowelScreen> {
     final bowelLogsAsync = ref.watch(bowelLogsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('پیگیری مدفوع')),
+      appBar: AppBar(
+        title: const Text('پیگیری مدفوع'),
+        actions: const [TutorialButton(topic: TutorialTopic.bowel)],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
         children: [

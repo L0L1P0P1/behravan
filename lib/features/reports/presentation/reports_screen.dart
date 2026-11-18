@@ -3,13 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
+import 'package:shamsi_date/shamsi_date.dart';
 
 import '../../../core/providers.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_ui.dart';
+import '../../../core/widgets/night_weather.dart';
 import '../../../data/database/app_database.dart';
+import '../../tutorial/presentation/tutorial_screen.dart';
 import '../application/clinical_report_pdf.dart';
+import '../application/data_export.dart';
 import '../application/progression_service.dart';
 import '../domain/progression_models.dart';
 import 'widgets/celebration_dialog.dart';
@@ -23,6 +27,7 @@ class ReportsScreen extends ConsumerStatefulWidget {
 
 class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   bool _isExporting = false;
+  ExportFormat? _exportingData;
 
   Future<void> _applySuggestedInterval(int oldInterval, int newInterval) async {
     final db = ref.read(databaseProvider);
@@ -89,6 +94,30 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
   }
 
+  Future<void> _shareData(ExportFormat format) async {
+    setState(() => _exportingData = format);
+    try {
+      final db = ref.read(databaseProvider);
+      await shareDataExport(
+        format: format,
+        voidingLogs: await db.select(db.voidingLogs).get(),
+        enuresisLogs: await db.select(db.enuresisLogs).get(),
+        bowelLogs: await db.select(db.bowelLogs).get(),
+      );
+    } catch (e, st) {
+      debugPrint('Data export failed: $e\n$st');
+      if (mounted) {
+        AppToast.show(
+          context,
+          message: 'ساخت فایل انجام نشد. دوباره تلاش کنید.',
+          tone: ToastTone.neutral,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportingData = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final evaluation = ref.watch(progressionEvaluationProvider);
@@ -109,7 +138,10 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     final weekBowel = bowelLogs.where((l) => l.timestamp.isAfter(weekAgo));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('گزارش و پیشرفت')),
+      appBar: AppBar(
+        title: const Text('گزارش و پیشرفت'),
+        actions: const [TutorialButton(topic: TutorialTopic.tips)],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
@@ -149,8 +181,8 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                     title: 'شب خشک',
                     value: '${weekDryNights.length}',
                     caption: 'از ${weekNights.length} شب ثبت‌شده',
-                    icon: Icons.nightlight_rounded,
-                    color: const Color(0xFF6366F1),
+                    icon: Icons.wb_sunny_rounded,
+                    color: AppColors.sunny,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -166,6 +198,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               ],
             ),
           ),
+
+          const SizedBox(height: 22),
+
+          // Trends
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: SectionHeader(title: 'روند پیشرفت'),
+          ),
+          const SizedBox(height: 10),
+          _NightTrendCard(nights: enuresisLogs),
+          const SizedBox(height: 10),
+          _VoidingTrendCard(logs: voidingLogs),
 
           const SizedBox(height: 22),
 
@@ -214,6 +258,52 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   onPressed: totalLogs == 0 || _isExporting
                       ? null
                       : _generatePdfReport,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'خروجی داده برای تحلیل',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'همه ثبت‌ها با تاریخ میلادی و شمسی، آماده اکسل و نرم‌افزارهای آماری.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.5,
+                    color: AppColors.muted,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    for (final (format, label, icon) in const [
+                      (ExportFormat.xlsx, 'اکسل', Icons.table_chart_rounded),
+                      (ExportFormat.csv, 'CSV', Icons.description_outlined),
+                    ]) ...[
+                      if (format != ExportFormat.xlsx)
+                        const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          icon: _exportingData == format
+                              ? const SizedBox.square(
+                                  dimension: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(icon, size: 18),
+                          label: Text(label),
+                          onPressed: totalLogs == 0 || _exportingData != null
+                              ? null
+                              : () => _shareData(format),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -380,6 +470,324 @@ class _ProgressionBanner extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+/// One column of a two-segment bar chart.
+class _BarDatum {
+  final String label;
+  final int first;
+  final int second;
+
+  const _BarDatum(this.label, this.first, this.second);
+
+  int get total => first + second;
+}
+
+/// Small stacked column chart: [first] sits on the baseline, [second] above
+/// it, with a surface gap between them. Each column shows its total, and a
+/// tap reveals the split.
+class _StackedBars extends StatelessWidget {
+  static const _plotHeight = 92.0;
+
+  final List<_BarDatum> data;
+  final Color firstColor;
+  final Color secondColor;
+  final String Function(_BarDatum) describe;
+  final int minScale;
+
+  const _StackedBars({
+    required this.data,
+    required this.firstColor,
+    required this.secondColor,
+    required this.describe,
+    required this.minScale,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final maxTotal = data.fold(minScale, (m, d) => d.total > m ? d.total : m);
+    double heightOf(int v) => v == 0 ? 0 : (v / maxTotal) * _plotHeight;
+    const radius = Radius.circular(4);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (final d in data)
+          Expanded(
+            child: Tooltip(
+              message: describe(d),
+              triggerMode: TooltipTriggerMode.tap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    d.total == 0 ? '–' : '${d.total}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.inkSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  SizedBox(
+                    height: _plotHeight + 2,
+                    width: 22,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (d.second > 0)
+                          Container(
+                            height: heightOf(d.second),
+                            decoration: BoxDecoration(
+                              color: secondColor,
+                              borderRadius: const BorderRadius.vertical(
+                                top: radius,
+                              ),
+                            ),
+                          ),
+                        if (d.first > 0 && d.second > 0)
+                          const SizedBox(height: 2),
+                        if (d.first > 0)
+                          Container(
+                            height: heightOf(d.first),
+                            decoration: BoxDecoration(
+                              color: firstColor,
+                              borderRadius: d.second > 0
+                                  ? null
+                                  : const BorderRadius.vertical(top: radius),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Container(height: 1, color: AppColors.border),
+                  const SizedBox(height: 6),
+                  Text(
+                    d.label,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ChartLegend extends StatelessWidget {
+  final List<(Widget, String)> items;
+
+  const _ChartLegend({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 14,
+      runSpacing: 4,
+      children: [
+        for (final (marker, label) in items)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              marker,
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.inkSoft,
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+Widget _swatch(Color color) => Container(
+  width: 10,
+  height: 10,
+  decoration: BoxDecoration(
+    color: color,
+    borderRadius: BorderRadius.circular(3),
+  ),
+);
+
+class _TrendCard extends StatelessWidget {
+  final String title;
+  final String? headline;
+  final Widget legend;
+  final Widget chart;
+
+  const _TrendCard({
+    required this.title,
+    required this.headline,
+    required this.legend,
+    required this.chart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.ink,
+            ),
+          ),
+          if (headline != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                headline!,
+                style: const TextStyle(fontSize: 12, color: AppColors.muted),
+              ),
+            ),
+          const SizedBox(height: 10),
+          legend,
+          const SizedBox(height: 14),
+          chart,
+        ],
+      ),
+    );
+  }
+}
+
+/// Dry and wet nights in each of the last four weeks, oldest first so the
+/// chart reads right to left like the text.
+class _NightTrendCard extends StatelessWidget {
+  final List<EnuresisLogEntity> nights;
+
+  const _NightTrendCard({required this.nights});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final key = DateFormat('yyyy-MM-dd');
+    const labels = ['۳ هفته پیش', '۲ هفته پیش', 'هفته پیش', 'این هفته'];
+
+    final weeks = [
+      for (var w = 3; w >= 0; w--)
+        () {
+          final from = key.format(
+            DateTime(now.year, now.month, now.day - 7 * w - 6),
+          );
+          final to = key.format(DateTime(now.year, now.month, now.day - 7 * w));
+          final inWeek = nights.where(
+            (n) => n.date.compareTo(from) >= 0 && n.date.compareTo(to) <= 0,
+          );
+          return _BarDatum(
+            labels[3 - w],
+            inWeek.where((n) => n.isDry).length,
+            inWeek.where((n) => !n.isDry).length,
+          );
+        }(),
+    ];
+
+    final thisWeek = weeks.last;
+    final lastWeek = weeks[2];
+    String? headline;
+    if (thisWeek.total > 0 && lastWeek.total > 0) {
+      final diff = thisWeek.first - lastWeek.first;
+      headline = diff > 0
+          ? '$diff شب آفتابی بیشتر از هفته پیش 🎉'
+          : diff == 0
+          ? 'به اندازه هفته پیش شب آفتابی داشتید.'
+          : 'هفته سخت‌تری بود؛ ادامه بدهید، آفتاب برمی‌گردد.';
+    }
+
+    return _TrendCard(
+      title: 'شب‌ها در ۴ هفته اخیر',
+      headline: headline,
+      legend: const _ChartLegend(
+        items: [
+          (NightWeatherIcon(isDry: true, size: 16), 'آفتابی (خشک)'),
+          (NightWeatherIcon(isDry: false, size: 16), 'بارانی (خیس)'),
+        ],
+      ),
+      chart: _StackedBars(
+        data: weeks,
+        firstColor: AppColors.sunny,
+        secondColor: AppColors.rainy,
+        minScale: 7,
+        describe: (d) => '${d.first} شب آفتابی، ${d.second} شب بارانی',
+      ),
+    );
+  }
+}
+
+/// Voids on each of the last seven days, split into dry voids and accidents.
+class _VoidingTrendCard extends StatelessWidget {
+  final List<VoidingLogEntity> logs;
+
+  const _VoidingTrendCard({required this.logs});
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final days = [
+      for (var i = 6; i >= 0; i--) DateTime(now.year, now.month, now.day - i),
+    ];
+
+    final data = [
+      for (final day in days)
+        () {
+          final onDay = logs.where(
+            (l) =>
+                l.timestamp.year == day.year &&
+                l.timestamp.month == day.month &&
+                l.timestamp.day == day.day,
+          );
+          final accidents = onDay.where((l) => l.eventType == 'accident');
+          return _BarDatum(
+            day.day == now.day
+                ? 'امروز'
+                : Jalali.fromDateTime(day).formatter.wN.substring(0, 1),
+            onDay.length - accidents.length,
+            accidents.length,
+          );
+        }(),
+    ];
+
+    final total = data.fold(0, (s, d) => s + d.total);
+    final dry = data.fold(0, (s, d) => s + d.first);
+
+    return _TrendCard(
+      title: 'ادرار در ۷ روز اخیر',
+      headline: total == 0
+          ? null
+          : '${(dry * 100 / total).round()}٪ بدون خیس شدن',
+      legend: _ChartLegend(
+        items: [
+          (_swatch(AppColors.primary), 'بدون خیس شدن'),
+          (_swatch(AppColors.gentle), 'خیس شدن'),
+        ],
+      ),
+      chart: _StackedBars(
+        data: data,
+        firstColor: AppColors.primary,
+        secondColor: AppColors.gentle,
+        minScale: 4,
+        describe: (d) => '${d.first} بار موفق، ${d.second} بار خیس شدن',
       ),
     );
   }

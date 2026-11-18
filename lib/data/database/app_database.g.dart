@@ -2534,28 +2534,26 @@ typedef $$EnuresisLogsTableProcessedTableManager =
       EnuresisLogEntity,
       PrefetchHooks Function()
     >;
-typedef $$BowelLogsTableCreateCompanionBuilder =
-    BowelLogsCompanion Function({
-      required String id,
-      required DateTime timestamp,
-      required int bristolType,
-      Value<int> strainingLevel,
-      Value<bool> bloodPresent,
-      Value<bool> soilingAccident,
-      Value<String?> notes,
-      Value<int> rowid,
-    });
-typedef $$BowelLogsTableUpdateCompanionBuilder =
-    BowelLogsCompanion Function({
-      Value<String> id,
-      Value<DateTime> timestamp,
-      Value<int> bristolType,
-      Value<int> strainingLevel,
-      Value<bool> bloodPresent,
-      Value<bool> soilingAccident,
-      Value<String?> notes,
-      Value<int> rowid,
-    });
+typedef $$BowelLogsTableCreateCompanionBuilder = BowelLogsCompanion Function({
+  required String id,
+  required DateTime timestamp,
+  required int bristolType,
+  Value<int> strainingLevel,
+  Value<bool> bloodPresent,
+  Value<bool> soilingAccident,
+  Value<String?> notes,
+  Value<int> rowid,
+});
+typedef $$BowelLogsTableUpdateCompanionBuilder = BowelLogsCompanion Function({
+  Value<String> id,
+  Value<DateTime> timestamp,
+  Value<int> bristolType,
+  Value<int> strainingLevel,
+  Value<bool> bloodPresent,
+  Value<bool> soilingAccident,
+  Value<String?> notes,
+  Value<int> rowid,
+});
 
 class $$BowelLogsTableFilterComposer
     extends Composer<_$AppDatabase, $BowelLogsTable> {
